@@ -41,8 +41,8 @@
 // #define PLATFORM_RAISE_PIN // pwm
 
 
-#define DEBUG_RED               A1
-#define DEBUG_GREEN             A2
+#define DEBUG_RED               A5
+#define DEBUG_GREEN             A4
 #define DEBUG_BLUE              A3
 
 typedef enum{
@@ -53,6 +53,9 @@ typedef enum{
     TAPE_R_SENSED,
     TAPE_L_SENSED,
     NULL_STATE,
+    DEBUG_RED_STATE,
+    DEBUG_GREEN_STATE,
+    DEBUG_BLUE_STATE,
     // last typedef enum value is guaranteed to be > then the 
     // # of states there are. kudos to the guy who thought of this
     NUM_STATES 
@@ -64,22 +67,28 @@ void (*state_functions[NUM_STATES])();
 // the state the machine is in
 unsigned char state_changed;
 unsigned char entered_state;
-static unsigned int current_state = STARTUP;
+unsigned char side_1; // which side of the board we are on
+static unsigned char current_state = STARTUP;
+
+// Other classes
+static Debug_Led *debug_red;
+static Debug_Led *debug_green;
+static Debug_Led *debug_blue;
 
 
-// -------------- Generic State handling methods --------- //
+// -------------- Generic State handling functions --------- //
 // these are pretty much taken directly from the code. its a great architecture. 
 
 
-void execute_current_state(new_state){
+void execute_current_state(){
     // use the current state to access the array index of the 
     // function that i want
-    state_functions[current]();
-    if (!state_changed) {entered_state = false};
+    state_functions[current_state]();
+    if (!state_changed) entered_state = false;
     state_changed = false;
 }
 
-void change_state(unsigned char new_state){
+void change_state_to(unsigned char new_state){
     // clear all the relevant timers
     current_state = new_state;
     entered_state = true;
@@ -90,18 +99,86 @@ void log_states(){
     Serial.println("IT WORKS");
 }
 
-// -------------- Specific state methods ---------- //
+// -------------- Event testing functions ----------- //
+// various event testers that return true or false
+
+unsigned char test_for_key(unsigned char new_state){
+    // ignore new_state. this is for debugging purposes
+    if (Serial.available()){
+        unsigned char key = Serial.read();
+        Serial.print("Key pressed: ");
+        Serial.println(key);
+        switch(key){
+            case('r'): 
+                debug_red->toggle(); 
+                break;
+            case('g'): 
+                debug_green->toggle(); 
+                break;
+            case('b'): 
+                debug_blue->toggle(); 
+                break;
+        }
+    }
+}
+
+unsigned char test_for_depository(unsigned char new_state){
+    // implement
+
+    // if it returns true 
+    // change_state_to(new_state)
+
+    // else 
+    return false;
+}
+
+unsigned char test_for_server(unsigned char new_state){
+    // implement
+    // if returns true
+    // change_state_to(new_state)
+    return false;
+}
+
+unsigned char test_for_tape_r(unsigned char new_state){
+    return false;
+}
+
+unsigned char test_for_tape_l(unsigned char new_state){
+    return false;
+}
+
+unsigned char test_for_tape(unsigned char new_state){
+    return false;
+}
+
+
+// -------------- Specific state functions ---------- //
 
 // each state method implements code that tells the robot 
 // what it should be doing in that state, which will be executed once
 
 // The main startup one. all the inits sill be called here
 void startup_fn(){
-    Debug.init(DEBUG_RED, DEBUG_GREEN, DEBUG_BLUE);
+    Serial.println("startup_fn");
+
+    debug_red = new Debug_Led(DEBUG_RED);
+    debug_green = new Debug_Led(DEBUG_GREEN);
+    debug_blue = new Debug_Led(DEBUG_BLUE);
+
+    Serial.println("end startup_fn");
+
+    change_state_to(NULL_STATE);
 }
 
 void beacon_3k_sensed_fn(){
-
+    if (entered_state){
+        // this code will only be executed once
+        Serial.println('entered beacon_3k_sensed_fn');
+    }
+    // Test for all events
+    if (test_for_depository(BEACON_850_SENSED)) return;
+    if (test_for_tape_r(TAPE_R_SENSED)) return;
+    if (test_for_tape_l(TAPE_L_SENSED)) return;
 }
 
 void beacon_850_sensed_fn(){
@@ -116,9 +193,30 @@ void tape_l_sensed_fn(){
 
 }
 
+
+// -- Various debugging states -- //
 // send things here to end the loop
 void null_state_fn(){
+    Serial.println("null_state_fn");
+    if (test_for_key(NULL_STATE)) return ;
+}
 
+void debug_red_state_fn(){
+    if (entered_state){
+
+    }
+}
+
+void debug_green_state_fn(){
+    if (entered_state){
+
+    }
+}
+
+void debug_blue_state_fn(){
+    if (entered_state){
+
+    }
 }
 
 // -------------- Setup Methods ------------ //
@@ -132,6 +230,7 @@ void setup_states() {
     state_functions[TAPE_R_SENSED] = tape_r_sensed_fn;
     state_functions[TAPE_L_SENSED] = tape_l_sensed_fn;
     state_functions[NULL_STATE] = null_state_fn;
-    
-
+    state_functions[DEBUG_RED_STATE] = debug_red_state_fn;
+    state_functions[DEBUG_GREEN_STATE] = debug_green_state_fn;
+    state_functions[DEBUG_BLUE_STATE] = debug_blue_state_fn;
 }

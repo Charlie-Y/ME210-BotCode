@@ -2,39 +2,76 @@
 // the file sharing and classes of C++
 
 #include "Arduino.h"
+#include "Debug_Leds.h"
 
-static unsigned char red_pin = 11;
-static unsigned char green_pin = 11;
-static unsigned char blue_pin = 11;
+// static unsigned char RED_PIN = 11;
+// static unsigned char GREEN_PIN = 11;
+// static unsigned char BLUE_PIN = 11;
+// static unsigned char led_pin;
+// static unsigned char is_on; 
 
-void init(unsigned char r,unsigned char g,unsigned char b){
-    red_pin = r;
-    green_pin = g;
-    blue_pin = b;
-    pinMode(red_pin, OUTPUT);
-    pinMode(green_pin, OUTPUT);
-    pinMode(blue_pin, OUTPUT);
-    Serial.println("red_pin: ");
-    Serial.println(red_pin);
-    Serial.println("green_pin: ");
-    Serial.println(red_pin);
-    Serial.println("blue_pin: ");
-    Serial.println(red_pin);
+Debug_Led::Debug_Led(unsigned char pin){
+    led_pin = pin;
+    is_on = false;
+
+    pinMode(led_pin, OUTPUT);
+    Serial.print("Setup pin: " );
+    Serial.println(led_pin);
+}
+
+void Debug_Led::led_on(){
+    digitalWrite(led_pin, HIGH);
+    is_on = true;
+
+    Serial.print("Debug led on: " );
+    Serial.println(led_pin);
+}
+
+void Debug_Led::led_off(){
+    digitalWrite(led_pin, LOW);
+    is_on = false;
+
+    Serial.print("Debug led off: " );
+    Serial.println(led_pin);
+}
+
+void Debug_Led::toggle(){
+    if (is_on){
+        led_off();
+    } else {
+        led_on();
+    }
 }
 
 
-void clear_debug_leds(){
+// void init(unsigned char r,unsigned char g,unsigned char b){
+//     red_pin = r;
+//     green_pin = g;
+//     blue_pin = b;
+//     pinMode(red_pin, OUTPUT);
+//     pinMode(green_pin, OUTPUT);
+//     pinMode(blue_pin, OUTPUT);
+//     Serial.println("red_pin: ");
+//     Serial.println(red_pin);
+//     Serial.println("green_pin: ");
+//     Serial.println(red_pin);
+//     Serial.println("blue_pin: ");
+//     Serial.println(red_pin);
+// }
 
-}
 
-void debug_red_on(){
+// void clear_debug_leds(){
 
-}
+// }
 
-void debug_green_on(){
+// void debug_red_on(){
 
-}
+// }
 
-void debug_blue_on(){
+// void debug_green_on(){
 
-}
+// }
+
+// void debug_blue_on(){
+
+// }

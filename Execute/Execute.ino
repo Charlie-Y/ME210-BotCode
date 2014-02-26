@@ -8,10 +8,12 @@ void setup(){
     // tape sensing init
     Serial.begin(9600);
     Serial.println("Starting the BotCoin code...");
-    log_states();
+    // log_states();
+    setup_states();
 }
 
 void loop(){
     execute_current_state();
+    delay(1000);
 }
 

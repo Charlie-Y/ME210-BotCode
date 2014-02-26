@@ -2,7 +2,7 @@
 #define State_Machine_h
 
 
-void logStates();
+void log_states();
 void setup_states();
 void execute_current_state();
 
