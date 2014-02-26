@@ -23,9 +23,13 @@ This is the ME210 project code, split into various libraries to ensure modularit
 7. Execute
     - just calls init and loop.
 
-- They will all be using classes?
+Other notes
+    - They will all be using classes?
+    - Pins will be defined in state machine and passed down to the library init functions. 
 
-- Pins will be defined in state machine and passed down to the library init functions. 
+## How to compile it -
+
+Use Execute.ino in the Arduino IDE
 
 
 

@@ -79,7 +79,7 @@ void execute_current_state(new_state){
     state_changed = false;
 }
 
-void change_state(){
+void change_state(unsigned char new_state){
     // clear all the relevant timers
     current_state = new_state;
     entered_state = true;
