@@ -4,35 +4,30 @@
 #include "Arduino.h"
 #include "Debug_Leds.h"
 
-// static unsigned char RED_PIN = 11;
-// static unsigned char GREEN_PIN = 11;
-// static unsigned char BLUE_PIN = 11;
-// static unsigned char led_pin;
-// static unsigned char is_on; 
-
+// Constructor 
 Debug_Led::Debug_Led(unsigned char pin){
     led_pin = pin;
     is_on = false;
 
     pinMode(led_pin, OUTPUT);
-    Serial.print("Setup pin: " );
-    Serial.println(led_pin);
+    // Serial.print("Setup pin: " );
+    // Serial.println(led_pin);
 }
 
 void Debug_Led::led_on(){
     digitalWrite(led_pin, HIGH);
     is_on = true;
 
-    Serial.print("Debug led on: " );
-    Serial.println(led_pin);
+    // Serial.print("Debug led on: " );
+    // Serial.println(led_pin);
 }
 
 void Debug_Led::led_off(){
     digitalWrite(led_pin, LOW);
     is_on = false;
 
-    Serial.print("Debug led off: " );
-    Serial.println(led_pin);
+    // Serial.print("Debug led off: " );
+    // Serial.println(led_pin);
 }
 
 void Debug_Led::toggle(){

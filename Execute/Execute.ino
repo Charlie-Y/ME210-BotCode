@@ -14,6 +14,6 @@ void setup(){
 
 void loop(){
     execute_current_state();
-    delay(1000);
+    delay(40);
 }
 

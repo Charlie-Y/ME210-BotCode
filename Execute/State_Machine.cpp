@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "State_Machine.h"
 #include "Debug_Leds.h"
+#include "Tape_Sensing.h"
 
 /* ======================================== */
 /* ============== Defines ================= */
@@ -17,8 +18,8 @@
 #define INTERRUPT_ID            0 // for some reason interrupt 0 maps to pin 2
 
 // digital reads
-#define TAPE_SENSOR_R_PIN       A5
-#define TAPE_SENSOR_L_PIN       A6
+#define TAPE_SENSOR_R_PIN       A0
+#define TAPE_SENSOR_L_PIN       A1
 
 // more digital reads
 // #define BUMPER_R_PIN
@@ -52,10 +53,8 @@ typedef enum{
     BEACON_850_SENSED,
     TAPE_R_SENSED,
     TAPE_L_SENSED,
+    TAPE_BOTH_SENSED,
     NULL_STATE,
-    DEBUG_RED_STATE,
-    DEBUG_GREEN_STATE,
-    DEBUG_BLUE_STATE,
     // last typedef enum value is guaranteed to be > then the 
     // # of states there are. kudos to the guy who thought of this
     NUM_STATES 
@@ -74,6 +73,14 @@ static unsigned char current_state = STARTUP;
 static Debug_Led *debug_red;
 static Debug_Led *debug_green;
 static Debug_Led *debug_blue;
+
+static Tape_Sensor *tape_r;
+static Tape_Sensor *tape_l;
+
+
+// -------------- Prototypes ------------------------------- //
+
+void debug_all_off(void);
 
 
 // -------------- Generic State handling functions --------- //
@@ -119,16 +126,16 @@ unsigned char test_for_key(unsigned char new_state){
                 debug_blue->toggle(); 
                 break;
         }
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
     }
+
 }
 
 unsigned char test_for_depository(unsigned char new_state){
-    // implement
-
-    // if it returns true 
     // change_state_to(new_state)
-
-    // else 
     return false;
 }
 
@@ -139,12 +146,40 @@ unsigned char test_for_server(unsigned char new_state){
     return false;
 }
 
-unsigned char test_for_tape_r(unsigned char new_state){
-    return false;
+unsigned char test_for_tape_r_on(unsigned char new_state){
+    if (tape_r->is_on_tape()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-unsigned char test_for_tape_l(unsigned char new_state){
-    return false;
+unsigned char test_for_tape_l_on(unsigned char new_state){
+    if (tape_l->is_on_tape()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char test_for_tape_r_off(unsigned char new_state){
+    if (tape_r->is_off_tape()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char test_for_tape_l_off(unsigned char new_state){
+    if (tape_l->is_off_tape()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 unsigned char test_for_tape(unsigned char new_state){
@@ -156,6 +191,7 @@ unsigned char test_for_tape(unsigned char new_state){
 
 // each state method implements code that tells the robot 
 // what it should be doing in that state, which will be executed once
+// event checking also happens here;
 
 // The main startup one. all the inits sill be called here
 void startup_fn(){
@@ -165,59 +201,88 @@ void startup_fn(){
     debug_green = new Debug_Led(DEBUG_GREEN);
     debug_blue = new Debug_Led(DEBUG_BLUE);
 
+    tape_r = new Tape_Sensor(TAPE_SENSOR_R_PIN);
+    tape_l = new Tape_Sensor(TAPE_SENSOR_L_PIN);
+
+    // beacon_sensor = new Beacon_Sensor(INTERRUPT_ID);
+
     Serial.println("end startup_fn");
 
     change_state_to(NULL_STATE);
 }
 
-void beacon_3k_sensed_fn(){
+void server_beacon_sensed_fn(){
     if (entered_state){
         // this code will only be executed once
-        Serial.println('entered beacon_3k_sensed_fn');
+        Serial.println('entered server_beacon_sensed_fn');
     }
     // Test for all events
     if (test_for_depository(BEACON_850_SENSED)) return;
-    if (test_for_tape_r(TAPE_R_SENSED)) return;
-    if (test_for_tape_l(TAPE_L_SENSED)) return;
+    // if (test_for_tape_r_on(TAPE_R_SENSED)) return;
+    // if (test_for_tape_l_on(TAPE_L_SENSED)) return;
 }
 
-void beacon_850_sensed_fn(){
+void depo_beacon_sensed_fn(){
 
 }
 
 void tape_r_sensed_fn(){
-
+    if (entered_state){
+        debug_all_off();
+        debug_red->led_on();
+        Serial.println("tape_r_sensed_fn");
+    }
+    if (test_for_tape_r_off(NULL_STATE)) return;
+    if (test_for_tape_l_on(TAPE_BOTH_SENSED)) return;
 }
 
 void tape_l_sensed_fn(){
+    if (entered_state){
+        debug_all_off();
+        debug_blue->led_on();
+        Serial.println("tape_l_sensed_fn");
+    }
+    if (test_for_tape_l_off(NULL_STATE)) return;
+    if (test_for_tape_r_on(TAPE_BOTH_SENSED)) return;
 
 }
 
+void tape_both_sensed_fn(){
+    if (entered_state){
+        debug_all_off();
+        debug_green->led_on();
+        Serial.println("tape_both_sensed_fn");
+    }
+
+    if (test_for_tape_l_off(TAPåE_R_SENSED)) return;
+    if (test_for_tape_r_off(TAPE_L_SENSED)) return;
+
+}
 
 // -- Various debugging states -- //
 // send things here to end the loop
+
 void null_state_fn(){
-    Serial.println("null_state_fn");
-    if (test_for_key(NULL_STATE)) return ;
-}
-
-void debug_red_state_fn(){
     if (entered_state){
-
+        Serial.println("null_state_fn");
+        debug_all_off();
     }
+
+    if (test_for_key(NULL_STATE)) return;
+    if (test_for_tape_r_on(TAPE_R_SENSED)) return;
+    if (test_for_tape_l_on(TAPE_L_SENSED)) return;
 }
 
-void debug_green_state_fn(){
-    if (entered_state){
 
-    }
+
+// -------------- Utility Methods ------------ //
+
+void debug_all_off(){
+    debug_red->led_off();
+    debug_green->led_off();
+    debug_blue->led_off();
 }
 
-void debug_blue_state_fn(){
-    if (entered_state){
-
-    }
-}
 
 // -------------- Setup Methods ------------ //
 // this goes at the end because the functions need to be defined first
@@ -225,12 +290,10 @@ void setup_states() {
     //link each state to a function
     // state_functions[] = ;
     state_functions[STARTUP] = startup_fn;
-    state_functions[BEACON_3K_SENSED] = beacon_3k_sensed_fn;
-    state_functions[BEACON_850_SENSED] = beacon_850_sensed_fn;
+    state_functions[SERVER_BEACON_SENSED] = server_beacon_sensed_fn;
+    state_functions[DEPO_BEACON_SENSED] = depo_beacon_sensed_fn;
     state_functions[TAPE_R_SENSED] = tape_r_sensed_fn;
     state_functions[TAPE_L_SENSED] = tape_l_sensed_fn;
+    state_functions[TAPE_BOTH_SENSED] = tape_both_sensed_fn;
     state_functions[NULL_STATE] = null_state_fn;
-    state_functions[DEBUG_RED_STATE] = debug_red_state_fn;
-    state_functions[DEBUG_GREEN_STATE] = debug_green_state_fn;
-    state_functions[DEBUG_BLUE_STATE] = debug_blue_state_fn;
 }
