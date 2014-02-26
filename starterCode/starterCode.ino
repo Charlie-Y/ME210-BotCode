@@ -1,5 +1,5 @@
 
-/*  Startercode for the rinal bot - names for the bot are still up for consideration 
+/*  Startercode for the final bot - names for the bot are still up for consideration 
 
 
 /* ------ Goals and functionality ------- */
@@ -23,43 +23,6 @@ because we are trying to offload the signal processing to the hardware
 //  probably need vectors
 
 
-
-/* ======================================== */
-/* ============== Defines ================= */
-/* ======================================== */
-
-#define DEBUGGING               1// true or false. all serial prints should have a if(DEBUGGING) Serial.println(etc)
-// and we can have different types of debugging, like state tracking
-#define LOG_STATE               1
-
-
-// ---------  Input pins  ----------- //
-
-#define IR_SENSOR_PIN //infrared sensor
-
-#define TAPE_SENSOR_R_PIN
-#define TAPE_SENSOR_L_PIN
-
-#define BUMPER_R_PIN
-#define BUMPER_R_PIN
-
-// ---------  Output pins  ----------- //
-
-// motor wheel - RIGHT
-#define WHEEL_R_DIRECTION_PIN
-#define WHEEL_R_SPEED_PIN
-// motor wheel - LEFT
-#define WHEEL_L_DIRECTION_PIN
-#define WHEEL_L_SPEED_PIN
-    
-// coin drop pins
-#define COIN_DROP_PIN
-
-// platform raising. its a stepper motor
-#define PLATFORM_RAISE_PIN 
-
-// debug led pin - probably use the one on the Arduino
-#define DEBUG_LED_PIN
 
 
 // ---------  Directions  ----------- //
