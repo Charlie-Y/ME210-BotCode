@@ -4,6 +4,8 @@
 // pass in the required pin - needs the digital pin 2
 // use classes here. we can have up to 2 sensors
 
+// we might need more so classes. 
+
 void beacon_sensing_init(unsigned char);
 
 unsigned char server_found();

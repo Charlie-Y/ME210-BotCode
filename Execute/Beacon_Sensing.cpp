@@ -3,11 +3,9 @@
 
 #define SENSING_INTERVAL      100
 
-// todo test all these things   
 #define SERVER_BEACON_LOW       2600
 #define SERVER_BEACON_HIGH      3300
 
-//  todo - test test test
 #define DEPOSITORY_BEACON_LOW   400
 #define DEPOSITORY_BEACON_HIGH  1200
 
@@ -100,6 +98,7 @@ void inc_freq_count(){
     freq_count++;
 }
 
+// todo - take the average of the last few frequencies
 void set_frequency(){
     // need some kind of last time function
     long interval = time_since_last();
