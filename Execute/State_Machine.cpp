@@ -1,7 +1,10 @@
 #include "Arduino.h"
+#include "Timers.h"
+
 #include "State_Machine.h"
 #include "Debug_Leds.h"
 #include "Tape_Sensing.h"
+#include "Beacon_Sensing.h"
 
 /* ======================================== */
 /* ============== Defines ================= */
@@ -49,8 +52,8 @@
 typedef enum{
     // all the state names
     STARTUP,
-    BEACON_3K_SENSED,
-    BEACON_850_SENSED,
+    SERVER_BEACON_SENSED,
+    DEPO_BEACON_SENSED,
     TAPE_R_SENSED,
     TAPE_L_SENSED,
     TAPE_BOTH_SENSED,
@@ -68,6 +71,11 @@ unsigned char state_changed;
 unsigned char entered_state;
 unsigned char side_1; // which side of the board we are on
 static unsigned char current_state = STARTUP;
+
+unsigned char current_coin_count;
+unsigned char coins_taken_from_server;
+unsigned char times_button_pressed_for_coin;
+
 
 // Other classes
 static Debug_Led *debug_red;
@@ -97,6 +105,8 @@ void execute_current_state(){
 
 void change_state_to(unsigned char new_state){
     // clear all the relevant timers
+    debug_all_off();
+
     current_state = new_state;
     entered_state = true;
     state_changed = true;
@@ -109,7 +119,7 @@ void log_states(){
 // -------------- Event testing functions ----------- //
 // various event testers that return true or false
 
-unsigned char test_for_key(unsigned char new_state){
+unsigned char respond_to_key(unsigned char new_state){
     // ignore new_state. this is for debugging purposes
     if (Serial.available()){
         unsigned char key = Serial.read();
@@ -134,19 +144,47 @@ unsigned char test_for_key(unsigned char new_state){
 
 }
 
-unsigned char test_for_depository(unsigned char new_state){
-    // change_state_to(new_state)
-    return false;
+unsigned char respond_to_beacon(unsigned char new_state){
+    if (beacon_found()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-unsigned char test_for_server(unsigned char new_state){
+unsigned char respond_to_no_beacon(unsigned char new_state){
+    if (no_beacon_found()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_depository_found(unsigned char new_state){
+    // change_state_to(new_state)
+    if (depository_found()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_server_found(unsigned char new_state){
     // implement
     // if returns true
     // change_state_to(new_state)
-    return false;
+    if (server_found()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
 }
 
-unsigned char test_for_tape_r_on(unsigned char new_state){
+unsigned char respond_to_tape_r_on(unsigned char new_state){
     if (tape_r->is_on_tape()){
         change_state_to(new_state);
         return true;
@@ -155,7 +193,7 @@ unsigned char test_for_tape_r_on(unsigned char new_state){
     }
 }
 
-unsigned char test_for_tape_l_on(unsigned char new_state){
+unsigned char respond_to_tape_l_on(unsigned char new_state){
     if (tape_l->is_on_tape()){
         change_state_to(new_state);
         return true;
@@ -164,7 +202,7 @@ unsigned char test_for_tape_l_on(unsigned char new_state){
     }
 }
 
-unsigned char test_for_tape_r_off(unsigned char new_state){
+unsigned char respond_to_tape_r_off(unsigned char new_state){
     if (tape_r->is_off_tape()){
         change_state_to(new_state);
         return true;
@@ -173,7 +211,7 @@ unsigned char test_for_tape_r_off(unsigned char new_state){
     }
 }
 
-unsigned char test_for_tape_l_off(unsigned char new_state){
+unsigned char respond_to_tape_l_off(unsigned char new_state){
     if (tape_l->is_off_tape()){
         change_state_to(new_state);
         return true;
@@ -182,7 +220,7 @@ unsigned char test_for_tape_l_off(unsigned char new_state){
     }
 }
 
-unsigned char test_for_tape(unsigned char new_state){
+unsigned char respond_to_tape(unsigned char new_state){
     return false;
 }
 
@@ -204,59 +242,65 @@ void startup_fn(){
     tape_r = new Tape_Sensor(TAPE_SENSOR_R_PIN);
     tape_l = new Tape_Sensor(TAPE_SENSOR_L_PIN);
 
-    // beacon_sensor = new Beacon_Sensor(INTERRUPT_ID);
+    // beacon_sensing_init(INTERRUPT_ID);
+
+    // ==== yet to implement ===== //
+    // button_pressing_init()
+    // motor_control_init(all the motor pins)
 
     Serial.println("end startup_fn");
 
     change_state_to(NULL_STATE);
 }
 
+
 void server_beacon_sensed_fn(){
     if (entered_state){
         // this code will only be executed once
-        Serial.println('entered server_beacon_sensed_fn');
+        Serial.println("entered server_beacon_sensed_fn");
+        debug_blue->led_on();
     }
     // Test for all events
-    if (test_for_depository(BEACON_850_SENSED)) return;
-    // if (test_for_tape_r_on(TAPE_R_SENSED)) return;
-    // if (test_for_tape_l_on(TAPE_L_SENSED)) return;
+    if (respond_to_no_beacon(NULL_STATE)) return;
+    if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
 }
 
 void depo_beacon_sensed_fn(){
-
+    if (entered_state){
+        // this code will only be executed once
+        Serial.println("entered depo_beacon_sensed_fn");
+        debug_green->led_on();
+    }
+    if (respond_to_no_beacon(NULL_STATE)) return;
+    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
 }
 
 void tape_r_sensed_fn(){
     if (entered_state){
-        debug_all_off();
         debug_red->led_on();
         Serial.println("tape_r_sensed_fn");
     }
-    if (test_for_tape_r_off(NULL_STATE)) return;
-    if (test_for_tape_l_on(TAPE_BOTH_SENSED)) return;
+    if (respond_to_tape_r_off(NULL_STATE)) return;
+    if (respond_to_tape_l_on(TAPE_BOTH_SENSED)) return;
 }
 
 void tape_l_sensed_fn(){
     if (entered_state){
-        debug_all_off();
         debug_blue->led_on();
         Serial.println("tape_l_sensed_fn");
     }
-    if (test_for_tape_l_off(NULL_STATE)) return;
-    if (test_for_tape_r_on(TAPE_BOTH_SENSED)) return;
+    if (respond_to_tape_l_off(NULL_STATE)) return;
+    if (respond_to_tape_r_on(TAPE_BOTH_SENSED)) return;
 
 }
 
 void tape_both_sensed_fn(){
     if (entered_state){
-        debug_all_off();
         debug_green->led_on();
         Serial.println("tape_both_sensed_fn");
     }
-
-    if (test_for_tape_l_off(TAPåE_R_SENSED)) return;
-    if (test_for_tape_r_off(TAPE_L_SENSED)) return;
-
+    if (respond_to_tape_l_off(TAPE_R_SENSED)) return;
+    if (respond_to_tape_r_off(TAPE_L_SENSED)) return;
 }
 
 // -- Various debugging states -- //
@@ -265,15 +309,14 @@ void tape_both_sensed_fn(){
 void null_state_fn(){
     if (entered_state){
         Serial.println("null_state_fn");
-        debug_all_off();
     }
 
-    if (test_for_key(NULL_STATE)) return;
-    if (test_for_tape_r_on(TAPE_R_SENSED)) return;
-    if (test_for_tape_l_on(TAPE_L_SENSED)) return;
+    if (respond_to_key(NULL_STATE)) return;
+    if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
+    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
+    // if (respond_to_tape_r_on(TAPE_R_SENSED)) return;
+    // if (respond_to_tape_l_on(TAPE_L_SENSED)) return;
 }
-
-
 
 // -------------- Utility Methods ------------ //
 
@@ -283,12 +326,10 @@ void debug_all_off(){
     debug_blue->led_off();
 }
 
-
 // -------------- Setup Methods ------------ //
 // this goes at the end because the functions need to be defined first
 void setup_states() {
     //link each state to a function
-    // state_functions[] = ;
     state_functions[STARTUP] = startup_fn;
     state_functions[SERVER_BEACON_SENSED] = server_beacon_sensed_fn;
     state_functions[DEPO_BEACON_SENSED] = depo_beacon_sensed_fn;

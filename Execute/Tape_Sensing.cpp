@@ -12,6 +12,7 @@ Tape_Sensor::Tape_Sensor(unsigned char pin){
 // expects a comparator input
 
 // todo - need to move band lower to 0 V. More like .5V
+// or make led on tape sensor have higher current
 unsigned char Tape_Sensor::is_on_tape(){
     unsigned char val = digitalRead(sensor_pin);
     return (val == HIGH);

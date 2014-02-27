@@ -1,41 +1,120 @@
-// #include <Timers.h>
-// #define TIME_INTERVAL      100
+#include "Arduino.h"
+#include "Timers.h"
 
-// //The pin Arduino outputs information to
-// int pin = 3;
-// volatile int state = LOW;
-// int freqcount=0;
-// float freq=0;
+#define SENSING_INTERVAL      100
 
-// void setup()
-// {
-//  Serial.begin(9600);
-//  Serial.println("Starting IR Beacon Sensing...");
-//  pinMode(pin, OUTPUT);
-// //mapped pin external interrupts: number 0 (digital pin 2) and 1 (digital pin 3) 
-//  attachInterrupt(0, count, RISING);
-//  TMRArd_InitTimer(0, TIME_INTERVAL );
-// }
+// todo test all these things   
+#define SERVER_BEACON_LOW       2600
+#define SERVER_BEACON_HIGH      3300
 
-// void loop()
-// {
-//  //Serial.println(freqcount);
-//    //digitalWrite(pin, state); 
-//  if (TMRArd_IsTimerExpired(0)){
-//    detachInterrupt(0);
-//    Serial.println("The Frequency count is: ");
-//    freq=freqcount*(1000/TIME_INTERVAL);
-//    Serial.println(freq);  
-//    freqcount=0; 
-//    attachInterrupt(0,count, RISING);
-//    TMRArd_InitTimer(0, TIME_INTERVAL );
-//  }
-// }
+//  todo - test test test
+#define DEPOSITORY_BEACON_LOW   400
+#define DEPOSITORY_BEACON_HIGH  1200
 
-// void count()
-// {
-//  freqcount++;
-// //  Serial.println(freqcount);
-// //  state=!state;
-// }
+
+static unsigned char interrupt_pin = 0; //interrupt pin 0 = digital pin 2
+unsigned int freq_count = 0;
+float frequency = 0;
+
+unsigned long last_time = 0;
+
+// -------- Prototypes ----------- //
+void inc_freq_count();
+void set_frequency();
+void attach_beacon_sensor_interrupt();
+unsigned long time_since_last();
+
+
+// -------- Public methods -------- //
+
+void beacon_sensing_init(unsigned char pin){
+    interrupt_pin = pin;
+    attach_beacon_sensor_interrupt();
+}
+
+unsigned char server_found(){
+    // get frequency
+    // if the frequency is in the right range
+    // then return true
+    set_frequency();
+
+    if ( (frequency > SERVER_BEACON_LOW) && (frequency < SERVER_BEACON_HIGH)){
+        Serial.println("server_found true");
+        return true;
+    } else {
+        Serial.println("server_found false");
+        return false;
+    }
+}
+
+unsigned char depository_found(){
+    // get frequency
+    // if the frequency is in the right range
+    // then return true
+    set_frequency();
+
+    if ( (frequency > DEPOSITORY_BEACON_LOW) && (frequency < DEPOSITORY_BEACON_HIGH)){
+        Serial.println("depository_found true");
+        return true;
+    } else {
+        Serial.println("depository_found false");
+        return false;
+    }
+}
+
+unsigned char no_beacon_found(){
+    // get frequency
+    // if the frequency is in the right range
+    // then return true
+    set_frequency();
+    if ( (frequency < DEPOSITORY_BEACON_LOW) || (frequency > SERVER_BEACON_HIGH)){
+        // Serial.println("no_beacon_found true");
+        return true;
+    } else {
+        // Serial.println("no_beacon_found false");
+        return false;
+    }
+}
+
+unsigned char beacon_found(){
+    // get frequency
+    // if the frequency is in the right range
+    // then return true
+    set_frequency();
+    if ( (frequency > DEPOSITORY_BEACON_LOW) || (frequency < SERVER_BEACON_HIGH)){
+        // Serial.println("beacon_found true");
+        return true;
+    } else {
+        // Serial.println("beacon_found false");
+        return false;
+    }
+}
+
+// =======  Private methods ========== //
+
+void attach_beacon_sensor_interrupt(){
+    attachInterrupt(interrupt_pin, inc_freq_count, RISING);
+}
+
+void inc_freq_count(){
+    freq_count++;
+}
+
+void set_frequency(){
+    // need some kind of last time function
+    long interval = time_since_last();
+    frequency = freq_count * (1000 / interval);
+    freq_count = 0;
+    last_time = TMRArd_GetTime();
+    attach_beacon_sensor_interrupt();
+
+    // Serial.print("Frequency: ");
+    // Serial.println(frequency);
+}
+
+unsigned long time_since_last(){
+    // negatives?
+    return ( TMRArd_GetTime() - last_time );
+}
+
 

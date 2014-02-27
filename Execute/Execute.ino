@@ -3,9 +3,6 @@
 
 void setup(){
     // call all the initialization code for all the libraries
-    //beacon sensing init
-    // button pressing init
-    // tape sensing init
     Serial.begin(9600);
     Serial.println("Starting the BotCoin code...");
     // log_states();
@@ -14,6 +11,10 @@ void setup(){
 
 void loop(){
     execute_current_state();
-    delay(40);
+    delay(100);
 }
 
+
+// todo - implement motor controls
+// todo - implement button pressing controls
+// todo - implement coin controls

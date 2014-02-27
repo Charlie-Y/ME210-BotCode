@@ -6,6 +6,5 @@ void log_states();
 void setup_states();
 void execute_current_state();
 
-
 #endif
 
