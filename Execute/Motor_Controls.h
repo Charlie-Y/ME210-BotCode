@@ -1,8 +1,6 @@
 #ifndef Motor_Controls_h
 #define Motor_Controls_h
 
-
-
 #define WHEEL_FORWARD             0
 #define WHEEL_BACKWARD            1
 

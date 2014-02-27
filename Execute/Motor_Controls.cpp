@@ -4,14 +4,14 @@
 #define SPEED_VALUES        11
 
 
-static const int speeds [SPEED_VALUES] = [ 0, 26, 51, 77, 102, 127, 153, 179, 204, 229, 255 ];
+static const int speeds [SPEED_VALUES] = {0, 26, 51, 77, 102, 127, 153, 179, 204, 229, 255 };
 
 
 static unsigned char wheel_r_dir_pin;
-static unsigned char wheel_r_speed_pin;
+static unsigned char wheel_r_enable_pin;
 
 static unsigned char wheel_l_dir_pin;
-static unsigned char wheel_l_speed_pin;
+static unsigned char wheel_l_enable_pin;
 
 
 /* -------- Prototypes -------- */
@@ -28,12 +28,12 @@ void l_dir(unsigned char);
 // todo - accounting for variation etc...
 // Initialization
 
-void motor_control_init(unsigned char wheel_r_dir, unsigned char wheel_r_speed, unsigned char wheel_l_dir, unsigned char wheel_l_speed){
+void motor_control_init(unsigned char wheel_r_dir, unsigned char wheel_r_enable, unsigned char wheel_l_dir, unsigned char wheel_l_enable){
     wheel_r_dir_pin = wheel_r_dir;
-    wheel_r_speed_pin = wheel_r_speed;
+    wheel_r_enable_pin = wheel_r_enable;
 
     wheel_l_dir_pin = wheel_l_dir;
-    wheel_l_speed_pin = wheel_l_speed;
+    wheel_l_enable_pin = wheel_l_enable;
 
     pinMode(wheel_r_dir_pin, OUTPUT);
     pinMode(wheel_l_dir_pin, OUTPUT);
@@ -127,12 +127,12 @@ unsigned char translate_speed(unsigned char speed){
 
 void r_speed(unsigned char speed){
     unsigned char translated_speed = translate_speed(speed);
-    analogWrite(wheel_r_speed_pin, translated_speed );
+    analogWrite(wheel_r_enable_pin, translated_speed );
 }
 
 void l_speed(unsigned char speed){
     unsigned char translated_speed = translate_speed(speed);
-    analogWrite(wheel_l_speed_pin, translated_speed);
+    analogWrite(wheel_l_enable_pin, translated_speed);
 }
 
 void r_dir(unsigned char direction){

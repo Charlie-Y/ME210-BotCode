@@ -5,6 +5,7 @@
 #include "Debug_Leds.h"
 #include "Tape_Sensing.h"
 #include "Beacon_Sensing.h"
+#include "Motor_Controls.h"
 
 /* ======================================== */
 /* ============== Defines ================= */
@@ -31,18 +32,22 @@
 // ---------  Output pins  ----------- //
 
 // motor wheel - RIGHT
-// #define WHEEL_R_DIRECTION_PIN //digital
-// #define WHEEL_R_SPEED_PIN // pwm
+#define WHEEL_R_ENABLE_PIN      5// pwm
+#define WHEEL_R_DIRECTION_PIN   7//digital
 
 // motor wheel - LEFT
-// #define WHEEL_L_DIRECTION_PIN //digital
-// #define WHEEL_L_SPEED_PIN // pwm
+#define WHEEL_L_ENABLE_PIN      6// pwm
+#define WHEEL_L_DIRECTION_PIN   8//digital
     
 // coin drop pins
 // #define COIN_DROP_PIN // digital
 
 // platform raising. its a stepper motor
 // #define PLATFORM_RAISE_PIN // pwm
+
+// button pressing
+// #define BUTTON_PRESSER_DIRECTION_PIN
+// #define BUTTON_PRESSER_SPEED_PIN
 
 
 #define DEBUG_RED               A5
@@ -242,11 +247,12 @@ void startup_fn(){
     tape_r = new Tape_Sensor(TAPE_SENSOR_R_PIN);
     tape_l = new Tape_Sensor(TAPE_SENSOR_L_PIN);
 
-    // beacon_sensing_init(INTERRUPT_ID);
+    beacon_sensing_init(INTERRUPT_ID);
+    motor_control_init(WHEEL_R_DIRECTION_PIN, WHEEL_R_ENABLE_PIN, WHEEL_L_DIRECTION_PIN, WHEEL_L_ENABLE_PIN);
 
     // ==== yet to implement ===== //
     // button_pressing_init()
-    // motor_control_init(all the motor pins)
+    // coin_control_init()
 
     Serial.println("end startup_fn");
 
@@ -311,9 +317,9 @@ void null_state_fn(){
         Serial.println("null_state_fn");
     }
 
-    if (respond_to_key(NULL_STATE)) return;
-    if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
-    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
+    // if (respond_to_key(NULL_STATE)) return;
+    // if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
+    // if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
     // if (respond_to_tape_r_on(TAPE_R_SENSED)) return;
     // if (respond_to_tape_l_on(TAPE_L_SENSED)) return;
 }
