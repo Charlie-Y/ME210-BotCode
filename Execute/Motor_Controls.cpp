@@ -36,7 +36,9 @@ void motor_control_init(unsigned char wheel_r_dir, unsigned char wheel_r_enable,
     wheel_l_enable_pin = wheel_l_enable;
 
     pinMode(wheel_r_dir_pin, OUTPUT);
+    pinMode(wheel_r_enable_pin, OUTPUT);
     pinMode(wheel_l_dir_pin, OUTPUT);
+    pinMode(wheel_l_enable_pin, OUTPUT);
 }
 
 
