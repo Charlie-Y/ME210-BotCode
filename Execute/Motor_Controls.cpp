@@ -58,7 +58,7 @@ void move_backwards(unsigned char speed){
 }
 
 // This should be called all the time
-void stop_moving(unsigned char speed){
+void stop_moving(){
     r_speed(0);
     l_speed(0);
 }
@@ -124,6 +124,11 @@ void arc_dir(unsigned char speed, unsigned char some_param, unsigned char direct
 
 
 unsigned char translate_speed(unsigned char speed){
+    if (speed > 10){
+        Serial.print("Chose a speed over 10: ");
+        Serial.println(speed);
+        return 127;
+    }
     return speeds[speed];
 }
 
@@ -142,7 +147,7 @@ void r_dir(unsigned char direction){
 }
 
 void l_dir(unsigned char direction){
-    digitalWrite(wheel_l_dir_pin, direction);
+    digitalWrite(wheel_l_dir_pin, !direction);
 }
 
 

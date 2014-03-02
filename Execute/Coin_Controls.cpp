@@ -2,6 +2,8 @@
 #include "Coin_Controls.h"
 #include "Pulse.h"
 
+// wait we aren't using the motors... sigh...
+
 #define PULSES_TO_90_DEGREES        45 // todo - figure this out
 #define PULSE_PERIOD                100//?
 #define HOPPER_DIRECTION_UP         1
@@ -34,5 +36,5 @@ void lower_hopper(){
 }
 
 unsigned char done_moving_hopper(){
-    return isPulseFinished();
+    return IsPulseFinished();
 }

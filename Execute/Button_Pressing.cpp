@@ -1,23 +1,63 @@
 #include "Arduino.h"
 #include "Button_Pressing.h"
-#include "Servo.h" // Arduino Server library
+#include "Servo.h" // Arduino Servo library
 
-static unsigned char button_direction_pin; // digital
-static unsigned char button_enable_pin; // pwm
+#define SERVO_MIN           90 // the axis of the servo
+#define SERVO_MAX           150 // CCW from top
+#define SERVO_INTERVAL      30 // if this is too large does it explode? // why did it explode?
 
-void button_pressing_init( unsigned char button_enable, unsigned char button_direction){
-    button_enable_pin = button_enable;
-    button_direction_pin = button_direction;
-    pinMode(button_enable_pin, OUTPUT);
-    pinMode(button_direction_pin, OUTPUT);
+#define SERVO_EXTENDING     0
+#define SERVO_RETRACTING    1
+
+
+static unsigned char button_presser_pin; // pwm
+static Servo servo;
+static int position = SERVO_MIN;
+static unsigned char current_servo_direction;
+
+
+void button_pressing_init( unsigned char button_presser){
+    button_presser_pin = button_presser;
+    servo.attach(button_presser_pin);
+    servo.write(SERVO_MIN);
+    current_servo_direction = SERVO_EXTENDING;
 };
 
-
+// extends the servo a bit
 void extend_button_presser(){
-    // probably write a high signal to button 
-};
+    servo.write(position);
+    // Serial.print("Extended to pos: ");
+    // Serial.println(position);
+    position += SERVO_INTERVAL;
+    current_servo_direction = SERVO_EXTENDING;
+}
 
+
+// retracts the servo a bit
 void retract_button_presser(){
+    servo.write(position);
+    position -= SERVO_INTERVAL;
+    current_servo_direction = SERVO_RETRACTING;
+}
 
-};
+// should return true if finished moving in any direction
+unsigned char button_presser_finished(){
+    if (current_servo_direction == SERVO_EXTENDING){
+        return (position >= SERVO_MAX);
+    } else if (current_servo_direction == SERVO_RETRACTING) {
+        return (position <= SERVO_MIN);
+    }
+    return true; 
+}
+
+// I'll need to work out the basics. 
+// it looks like we will need a state diagram of some sort. 
+
+// void extend_button_presser(){
+//     // probably write a high signal to button 
+// };
+
+// void retract_button_presser(){
+
+// };
 
