@@ -26,22 +26,22 @@
 #define INTERRUPT_ID            0 // for some reason interrupt 0 maps to pin 2
 
 // digital reads
-#define TAPE_SENSOR_F_PIN       A0
-#define TAPE_SENSOR_C_PIN       A1
+#define TAPE_SENSOR_R_PIN       A0
+#define TAPE_SENSOR_L_PIN       A1
 
 // more digital reads
-#define BUMPER_R_PIN            A4
-#define BUMPER_L_PIN            A5
+#define BUMPER_R_PIN            13
+#define BUMPER_R_PIN            12
 
 // ---------  Output pins  ----------- //
 
 // motor wheel - RIGHT
 #define WHEEL_R_ENABLE_PIN      6 // pwm - dark green
-#define WHEEL_R_DIRECTION_PIN   7 //digital - black
+#define WHEEL_R_DIRECTION_PIN   8 //digital - black
 
 // motor wheel - LEFT
 #define WHEEL_L_ENABLE_PIN      5 // pwm
-#define WHEEL_L_DIRECTION_PIN   4 //digital
+#define WHEEL_L_DIRECTION_PIN   7 //digital
     
 
 
@@ -52,7 +52,9 @@
 // #define PLATFORM_RAISE_PIN // pwm
 
 // button pressing
-#define BUTTON_PRESSER_PIN   10 // pwm
+#define BUTTON_PRESSER_PIN   9 // pwm
+
+
 
 
 #define DEBUG_RED               A5
@@ -75,8 +77,8 @@ typedef enum{
     SERVER_BEACON_SENSED,
     DEPO_BEACON_SENSED,
     // tape sensor states
-    TAPE_F_SENSED,
-    TAPE_C_SENSED,
+    TAPE_R_SENSED,
+    TAPE_L_SENSED,
     TAPE_BOTH_SENSED,
     //button presser test states
     EXTENDING_BUTTON_PRESSER,
@@ -123,8 +125,8 @@ static Debug_Led *debug_red;
 static Debug_Led *debug_green;
 static Debug_Led *debug_blue;
 
-static Tape_Sensor *tape_f;
-static Tape_Sensor *tape_c;
+static Tape_Sensor *tape_r;
+static Tape_Sensor *tape_l;
 
 static Bump_Sensor *bumper_r;
 
@@ -152,14 +154,9 @@ void change_state_to(unsigned char new_state){
     // clear all the relevant timers?
     debug_all_off();
     stop_moving();
-    beacon_sensing_state_changed();
-
     current_state = new_state;
     entered_state = true;
     state_changed = true;
-
-    Serial.println(" "); // take this off later
-
 }
 
 void log_states(){
@@ -252,7 +249,7 @@ unsigned char respond_to_tape_on(Tape_Sensor *tape_s, unsigned char new_state){
 }
 
 unsigned char respond_to_tape_off(Tape_Sensor *tape_s, unsigned char new_state){
-    if (tape_s->is_off_tape()){
+    if (tape_s->is_on_tape()){
         change_state_to(new_state);
         return true;
     } else {
@@ -310,11 +307,10 @@ void startup_fn(){
     debug_green = new Debug_Led(DEBUG_GREEN);
     debug_blue = new Debug_Led(DEBUG_BLUE);
 
-    tape_f = new Tape_Sensor(TAPE_SENSOR_F_PIN);
-    tape_c = new Tape_Sensor(TAPE_SENSOR_C_PIN);
+    tape_r = new Tape_Sensor(TAPE_SENSOR_R_PIN);
+    tape_l = new Tape_Sensor(TAPE_SENSOR_L_PIN);
 
     bumper_r = new Bump_Sensor(BUMPER_R_PIN);
-    bumper_l = new Bump_Sensor(BUMPER_L_PIN);
 
     beacon_sensing_init(INTERRUPT_ID);
     motor_control_init(WHEEL_R_DIRECTION_PIN, WHEEL_R_ENABLE_PIN, WHEEL_L_DIRECTION_PIN, WHEEL_L_ENABLE_PIN);
@@ -347,37 +343,36 @@ void depo_beacon_sensed_fn(){
         Serial.println("entered depo_beacon_sensed_fn");
         debug_green->led_on();
     }
-    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
     if (respond_to_no_beacon(NULL_STATE)) return;
-
+    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
 }
 
-void tape_f_sensed_fn(){
+void tape_r_sensed_fn(){
     if (entered_state){
         debug_red->led_on();
-        Serial.println("tape_f_sensed_fn");
+        Serial.println("tape_r_sensed_fn");
     }
-    if (respond_to_tape_off(tape_f, NULL_STATE)) return;
-    if (respond_to_tape_on(tape_c, TAPE_BOTH_SENSED)) return;
+    if (respond_to_tape_off(tape_r, NULL_STATE)) return;
+    if (respond_to_tape_on(tape_l, TAPE_BOTH_SENSED)) return;
 }
 
-void tape_c_sensed_fn(){
+void tape_l_sensed_fn(){
     if (entered_state){
         debug_blue->led_on();
-        Serial.println("tape_c_sensed_fn");
+        Serial.println("tape_l_sensed_fn");
     }
-    if (respond_to_tape_off(tape_c, NULL_STATE)) return;
-    if (respond_to_tape_on(tape_f, TAPE_BOTH_SENSED)) return;
-}
+    if (respond_to_tape_off(tape_l, NULL_STATE)) return;
+    if (respond_to_tape_on(tape_r, TAPE_BOTH_SENSED)) return;
 
+}
 
 void tape_both_sensed_fn(){
     if (entered_state){
         debug_green->led_on();
         Serial.println("tape_both_sensed_fn");
     }
-    if (respond_to_tape_off(tape_f, TAPE_C_SENSED)) return;
-    if (respond_to_tape_off(tape_c, TAPE_F_SENSED)) return;
+    if (respond_to_tape_off(tape_l, TAPE_R_SENSED)) return;
+    if (respond_to_tape_off(tape_r, TAPE_L_SENSED)) return;
 }
 
 
@@ -392,9 +387,8 @@ void extending_button_presser_fn(){
 
     // reenter the state and reincrement the servo
     if (respond_to_key(EXTENDING_BUTTON_PRESSER)) return;
-    if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return; // uhh...
-    // if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return; 
-    // if (respond_to_button_presser_finished(RETRACTING_BUTTON_PRESSER)) return;
+    if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
+    if (respond_to_button_presser_finished(RETRACTING_BUTTON_PRESSER)) return;
 }
 
 
@@ -406,9 +400,8 @@ void retracting_button_presser_fn(){
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
     }
     if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
-    if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
-    // if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return;
-    // if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
+    if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return;
+    if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
 }
 
 void moving_forward_fn(){
@@ -485,16 +478,16 @@ void move_towards_server_fn(){
         start_timer(MAIN_TIMER, 5000);
     }
 
-    // if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    // if (respond_to_bump(bumper_r, NULL_STATE)) {
-    //     arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
-    //     return;
-    // }
-    // if (respond_to_bump(bumper_l, NULL_STATE)) {
-    //     arena_side = LEFT_SIDE; 
-    //     return;
-    // }
-    // if ()
+    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    if (respond_to_bump(bumper_r, NULL_STATE)) {
+        arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
+        return;
+    }
+    if (respond_to_bump(bumper_l, NULL_STATE)) {
+        arena_side = LEFT_SIDE; 
+        return;
+    }
+    if ()
 }
 
 
@@ -505,14 +498,13 @@ void null_state_fn(){
     if (entered_state){
         Serial.println("null_state_fn");
     }
-    // Serial.println("wtf");
     // Serial.println(digitalRead(BUMPER_R_PIN));
     // change_state_to(MOVING_FORWARD);
     // change_state_to(EXTENDING_BUTTON_PRESSER);
     // if (respond_to_bumper_bumped(bumper_r, BUMPED)) return;
-    if (respond_to_key(NULL_STATE)) return;
-    if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
-    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
+    // if (respond_to_key(NULL_STATE)) return;
+    // if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
+    // if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
     // if (respond_to_tape_on(tape_r, TAPE_R_SENSED)) return;
     // if (respond_to_tape_on(tape_l, TAPE_L_SENSED)) return;
 }
@@ -547,8 +539,8 @@ void setup_states() {
     // --  Test states  -- //
     state_functions[SERVER_BEACON_SENSED] = server_beacon_sensed_fn;
     state_functions[DEPO_BEACON_SENSED] = depo_beacon_sensed_fn;
-    state_functions[TAPE_F_SENSED] = tape_f_sensed_fn;
-    state_functions[TAPE_C_SENSED] = tape_c_sensed_fn;
+    state_functions[TAPE_R_SENSED] = tape_r_sensed_fn;
+    state_functions[TAPE_L_SENSED] = tape_l_sensed_fn;
     state_functions[TAPE_BOTH_SENSED] = tape_both_sensed_fn;
     state_functions[EXTENDING_BUTTON_PRESSER] = extending_button_presser_fn;
     state_functions[RETRACTING_BUTTON_PRESSER] = retracting_button_presser_fn;

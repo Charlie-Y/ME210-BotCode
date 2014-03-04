@@ -11,7 +11,7 @@ void setup(){
 
 void loop(){
     execute_current_state();
-    delay(100);
+//   delay(500);
 }
 
 

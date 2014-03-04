@@ -12,6 +12,7 @@ unsigned char server_found();
 unsigned char depository_found();
 unsigned char no_beacon_found();
 unsigned char beacon_found();
+void beacon_sensing_state_changed();
 
 #endif
 
