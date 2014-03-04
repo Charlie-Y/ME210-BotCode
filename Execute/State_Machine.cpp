@@ -10,6 +10,7 @@
 #include "Motor_Controls.h"
 #include "Button_Pressing.h"
 #include "Bump_Sensing.h"
+#include "Dumping.h"
 
 /* ======================================== */
 /* ============== Defines ================= */
@@ -30,8 +31,8 @@
 #define TAPE_SENSOR_C_PIN       A1
 
 // more digital reads
-#define BUMPER_R_PIN            A4
-#define BUMPER_L_PIN            A5
+#define BUMPER_R_PIN            A5
+#define BUMPER_L_PIN            A4
 
 // ---------  Output pins  ----------- //
 
@@ -53,10 +54,11 @@
 
 // button pressing
 #define BUTTON_PRESSER_PIN   10 // pwm
+// dumping
+#define DUMPING_PIN 9 //pwm
 
-
-#define DEBUG_RED               A5
-#define DEBUG_GREEN             A4
+#define DEBUG_RED               11
+#define DEBUG_GREEN             12
 #define DEBUG_BLUE              A3
 
 // Timers
@@ -95,10 +97,19 @@ typedef enum{
 
     FIRST_ROTATE_TO_FIND_SERVER,
     MOVE_TOWARDS_SERVER,
+    ROTATE_RIGHT_OFF_WALL,
+    ROTATE_LEFT_OFF_WALL,
+    ROTATE_ON_SERVER_SENSOR,
+    GET_COINS,
+    ACCOUNT_FOR_COINS,
+    SETUP_TO_CHOOSE_DEPOSITORY,
+    CHOOSE_DEPOSITORY,
+    MOVE_TO_DEPOSITORY,
+    CHANGE_DEPOSITORY_IN_MOTION,
+    SETUP_TO_DUMP,
+    DUMP,
+    RETRACT_DUMPER,
     
-
-
-
     // last typedef enum value is guaranteed to be > then the 
     // # of states there are. kudos to the guy who thought of this
     NUM_STATES 
@@ -113,9 +124,11 @@ unsigned char entered_state;
 unsigned char arena_side; // which side of the board we are on
 static unsigned char current_state = STARTUP;
 
-unsigned char current_coin_count;
-unsigned char coins_taken_from_server;
-unsigned char times_button_pressed_for_coin;
+unsigned char exchanges[] = {3, 5, 8};
+unsigned char coin_collection_round;
+unsigned char current_server;
+unsigned char current_coin_count = 0;
+unsigned char times_button_pressed_required;
 
 
 // Objects 
@@ -127,6 +140,7 @@ static Tape_Sensor *tape_f;
 static Tape_Sensor *tape_c;
 
 static Bump_Sensor *bumper_r;
+static Bump_Sensor *bumper_l;
 
 
 // -------------- Prototypes ------------------------------- //
@@ -260,6 +274,24 @@ unsigned char respond_to_tape_off(Tape_Sensor *tape_s, unsigned char new_state){
     }
 }
 
+unsigned char respond_to_only_one_tape_on(Tape_Sensor *tape_s1, Tape_Sensor *tape_s2, unsigned char new_state){
+    if (tape_s1->is_on_tape() && tape_s2->is_off_tape()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_both_tape_on(Tape_Sensor *tape_s1, Tape_Sensor *tape_s2, unsigned char new_state){
+    if (tape_s1->is_on_tape() && tape_s2->is_on_tape()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 unsigned char respond_to_bumper_bumped(Bump_Sensor *bump_s, unsigned char new_state){
     if (bump_s->is_bumped()){
         change_state_to(new_state);
@@ -277,6 +309,34 @@ unsigned char respond_to_bumper_not_bumped(Bump_Sensor *bump_s, unsigned char ne
         return false;
     }
 }
+
+unsigned char respond_to_only_r_bumper_bumped(Bump_Sensor *bump_r, Bump_Sensor *bump_l, unsigned char new_state){
+    if (bump_r->is_bumped() && bump_l->is_not_bumped()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_only_l_bumper_bumped(Bump_Sensor *bump_l, Bump_Sensor *bump_r, unsigned char new_state){
+    if (bump_l->is_bumped() && bump_r->is_not_bumped()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_both_bumper_bumped(Bump_Sensor *bump_1, Bump_Sensor *bump_2, unsigned char new_state){
+    if (bump_1->is_bumped() && bump_2->is_bumped()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 unsigned char respond_to_button_presser_finished(unsigned char new_state){
     if (button_presser_finished()){
         change_state_to(new_state);
@@ -319,6 +379,7 @@ void startup_fn(){
     beacon_sensing_init(INTERRUPT_ID);
     motor_control_init(WHEEL_R_DIRECTION_PIN, WHEEL_R_ENABLE_PIN, WHEEL_L_DIRECTION_PIN, WHEEL_L_ENABLE_PIN);
     button_pressing_init(BUTTON_PRESSER_PIN);
+    dumping_init(DUMPING_PIN);
 
     // ==== yet to implement ===== //
     // coin_control_init()
@@ -485,18 +546,197 @@ void move_towards_server_fn(){
         start_timer(MAIN_TIMER, 5000);
     }
 
-    // if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    // if (respond_to_bump(bumper_r, NULL_STATE)) {
-    //     arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
-    //     return;
-    // }
-    // if (respond_to_bump(bumper_l, NULL_STATE)) {
-    //     arena_side = LEFT_SIDE; 
-    //     return;
-    // }
-    // if ()
+    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
+        arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
+        return;
+    }
+    if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
+        arena_side = LEFT_SIDE; // now we know what side of the arena we are on
+        return;
+    }
+    if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
+        return;
+    }
+    if (respond_to_both_bumper_bumped(bumper_r, bumper_l, GET_COINS)){
+        return;
+    }
 }
 
+void rotate_left_off_wall_fn(){
+    if (entered_state){
+        stop_moving();
+        start_timer(MAIN_TIMER, 1000);
+        rotate_left(5);
+    }
+    
+    if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
+}
+
+void rotate_right_off_wall_fn(){
+    if (entered_state){
+        stop_moving();
+        start_timer(MAIN_TIMER, 1000);
+        rotate_right(5);
+    }
+    
+    if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
+}
+
+void rotate_on_server_sensor_fn(){
+    if (entered_state){
+        stop_moving();
+        if (arena_side == LEFT_SIDE) {
+            rotate_left(5);
+            if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
+        }
+        if (arena_side == RIGHT_SIDE) {
+            rotate_right(5);
+            if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
+        }
+    }
+}
+                
+void get_coins_fn(){
+    if (entered_state){
+        stop_moving();
+        if (current_coin_count == 0) {
+            current_server = exchanges[coin_collection_round];
+            times_button_pressed_required = current_server;
+        }
+        start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
+        extend_button_presser();
+    }
+    
+    if (respond_to_timer(MAIN_TIMER, ACCOUNT_FOR_COINS)){
+        current_coin_count += 1;
+        times_button_pressed_required -= 1;
+        return;
+    }
+    
+}
+
+void account_for_coins_fn(){
+    if (entered_state){
+        start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
+        retract_button_presser();
+    }
+    
+    if (current_coin_count == current_server) {
+        current_coin_count = 0;
+        coin_collection_round += 1;
+        current_state = SETUP_TO_CHOOSE_DEPOSITORY;
+        return;
+        
+    }
+    if (respond_to_timer(MAIN_TIMER, GET_COINS)) return;
+}
+
+void setup_to_choose_depository_fn(){
+    if (entered_state) {
+        stop_moving();
+        start_timer(MAIN_TIMER, 1000);
+        move_backwards(5);
+    }
+    
+    if (respond_to_timer(MAIN_TIMER,CHOOSE_DEPOSITORY)) return;
+}
+
+                
+void choose_depository_fn(){
+    if (entered_state) {
+        stop_moving();
+        switch (current_server){
+            case 3:
+                if (arena_side == LEFT_SIDE) rotate_right(5);
+                if (arena_side == RIGHT_SIDE) rotate_left(5);
+                break;
+            case 5:
+                if (arena_side == RIGHT_SIDE) rotate_right(5);
+                if (arena_side == LEFT_SIDE) rotate_left(5);
+                break;
+            case 8:
+                rotate_left(5);
+                break;
+        }
+    }
+    
+    switch (current_server){
+        case 3:
+            if (respond_to_depository_found(MOVE_TO_DEPOSITORY)) return;
+            break;
+        case 5:
+            if (respond_to_depository_found(MOVE_TO_DEPOSITORY)) return;
+            break;
+        case 8:
+            if (respond_to_both_tape_on(tape_f, tape_c, MOVE_TO_DEPOSITORY)) return;
+            break;
+    }
+}
+                
+void move_to_depository_fn(){
+    if (entered_state) {
+        stop_moving();
+        move_forwards(5);
+        start_timer (MAIN_TIMER, 5000);
+    }
+    
+    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return;
+    if (respond_to_bumper_bumped(bumper_r,SETUP_TO_DUMP) || respond_to_bumper_bumped(bumper_l,SETUP_TO_DUMP)) return;
+}
+
+void change_depository_in_motion_fn(){
+  if (entered_state){
+    
+  }
+}
+
+void setup_to_dump_fn(){
+    if (entered_state) {
+        stop_moving();
+        switch (current_server){
+            case 3:
+                if (arena_side == LEFT_SIDE) rotate_left(5);
+                if (arena_side == RIGHT_SIDE) rotate_right(5);
+                break;
+            case 5:
+                if (arena_side == RIGHT_SIDE) rotate_left(5);
+                if (arena_side == LEFT_SIDE) rotate_right(5);
+                break;
+            case 8:
+                break;
+        }
+    }
+    
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY) return; //IS THIS NECESSARY
+    
+    if (respond_to_both_bumper_bumped(bumper_r, bumper_l,DUMP)) return;
+}
+    
+void dump_fn(){
+    if (entered_state) {
+        stop_moving();
+        start_timer(MAIN_TIMER, DUMPING_DELAY);
+        extend_dumper();
+    }
+    
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY) return; // IS THIS NECESARY?
+    
+    if(respond_to_timer(MAIN_TIMER, RETRACT_DUMPER)) return;
+}
+
+void retract_dumper_fn(){
+    if (entered_state) {
+        stop_moving();
+        start_timer(MAIN_TIMER, DUMPING_DELAY);
+        retract_dumper();
+        reverse();
+    }
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY) return; // IS THIS NECESARY?
+        
+    if (respond_to_timer(MAIN_TIMER, FIRST_ROTATE_TO_FIND_SERVER)return;
+}
 
 // -- Various debugging states -- //
 // send things here to end the loop
@@ -563,6 +803,18 @@ void setup_states() {
     // --- Actual states --- //
     state_functions[FIRST_ROTATE_TO_FIND_SERVER] = first_rotate_to_find_server_fn;
     state_functions[MOVE_TOWARDS_SERVER] = move_towards_server_fn;
+    state_functions [ROTATE_RIGHT_OFF_WALL] = rotate_right_off_wall_fn;
+    state_functions [ROTATE_LEFT_OFF_WALL] = rotate_left_off_wall_fn;
+    state_functions [ROTATE_ON_SERVER_SENSOR] = rotate_on_server_sensor_fn;
+    state_functions [GET_COINS] = get_coins_fn;
+    state_functions [ACCOUNT_FOR_COINS] = account_for_coins_fn;
+    state_functions [SETUP_TO_CHOOSE_DEPOSITORY] = setup_to_choose_depository_fn;
+    state_functions [CHOOSE_DEPOSITORY] = choose_depository_fn;
+    state_functions [MOVE_TO_DEPOSITORY] = move_to_depository_fn;
+    state_functions [CHANGE_DEPOSITORY_IN_MOTION] = change_depository_in_motion_fn;
+    state_functions [SETUP_TO_DUMP] = setup_to_dump_fn;
+    state_functions [DUMP] = dump_fn;
+    state_functions [RETRACT_DUMPER] = retract_dumper_fn;
 
 
 }

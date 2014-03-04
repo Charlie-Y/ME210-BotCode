@@ -7,6 +7,7 @@ class Bump_Sensor{
     public:
         Bump_Sensor(unsigned char);
         unsigned char is_bumped();
+        unsigned char is_not_bumped();
     private:
         unsigned char sensor_pin;
 };

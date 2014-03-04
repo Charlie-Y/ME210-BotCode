@@ -13,3 +13,8 @@ unsigned char Bump_Sensor::is_bumped(){
     unsigned char val = digitalRead(sensor_pin);
     return (val == HIGH);
 }
+
+unsigned char Bump_Sensor::is_not_bumped(){
+    unsigned char val = digitalRead(sensor_pin);
+    return (val == LOW);
+}
