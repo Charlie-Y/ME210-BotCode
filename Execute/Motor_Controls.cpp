@@ -65,17 +65,17 @@ void stop_moving(){
 
 // Rotating in place
 void rotate_right(unsigned char speed){
-    r_speed(speed);
-    r_dir(WHEEL_FORWARD);
     l_speed(speed);
-    l_dir(WHEEL_BACKWARD);
+    l_dir(WHEEL_FORWARD);
+    r_speed(speed);
+    r_dir(WHEEL_BACKWARD);
 }
 
 void rotate_left(unsigned char speed){
-    r_speed(speed);
-    r_dir(WHEEL_BACKWARD);
     l_speed(speed);
-    l_dir(WHEEL_FORWARD);
+    l_dir(WHEEL_BACKWARD);
+    r_speed(speed);
+    r_dir(WHEEL_FORWARD);
 }
 
 void rotate_dir(unsigned char speed, unsigned char direction){

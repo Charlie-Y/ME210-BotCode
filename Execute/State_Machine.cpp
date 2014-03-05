@@ -103,6 +103,7 @@ typedef enum{
     // --- Actual states --- //
 
     FIRST_ROTATE_TO_FIND_SERVER,
+    PAUSE,
     MOVE_TOWARDS_SERVER,
     ROTATE_RIGHT_OFF_WALL,
     ROTATE_LEFT_OFF_WALL,
@@ -131,13 +132,14 @@ unsigned char entered_state;
 unsigned char arena_side; // which side of the board we are on
 static unsigned char current_state = STARTUP;
 
-unsigned char exchanges[] = {3, 5, 8, 0};
+unsigned char exchanges[] = {8, 5, 3, 0};
 unsigned char coin_collection_round;
 unsigned char current_server;
 unsigned char next_server;
 unsigned char coins_on_hopper = 0;
 unsigned char current_coin_count = 0;
-unsigned char times_button_pressed_required;
+unsigned char times_button_pressed_required = 1;
+unsigned char total_coins = 0;
 
 
 // Objects 
@@ -433,7 +435,7 @@ void startup_fn(){
 
     Serial.println("end startup_fn");
 
-    change_state_to(NULL_STATE);
+    change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
 }
 
 // Test states
@@ -633,13 +635,24 @@ void bumped_b_fn(){
 void first_rotate_to_find_server_fn(){
     if (entered_state){
         Serial.println("first_rotate_to_find_server_fn");
-        rotate_right(8);
+        rotate_right(5);
         debug_blue->led_on();
         start_timer(MAIN_TIMER, 6000);
     }
 
-    if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return ;
+    if (respond_to_server_found(PAUSE)) return ;
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+}
+
+void pause_fn(){
+    if (entered_state){
+        stop_moving();
+        rotate_left(3);
+    }
+    
+    if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return ;
+    
+    
 }
 
 void move_towards_server_fn(){
@@ -647,33 +660,32 @@ void move_towards_server_fn(){
         stop_moving();
         Serial.println("move_towards_server_fn");
 
-        move_forwards(8);
+        move_forwards(7);
         debug_red->led_on();
 
         start_timer(MAIN_TIMER, 5000);
     }
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    if (respond_to_bumper_bumped(bumper_r, NULL_STATE)) return ;
-    if (respond_to_bumper_bumped(bumper_l, NULL_STATE)) return ;
-    // if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
-    //     arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
-    //     return;
-    // }
-    // if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
-    //     arena_side = LEFT_SIDE; // now we know what side of the arena we are on
-    //     return;
-    // }
-    // if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
-    //     return;
-    // }
-    // if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, GET_COINS)){
-    //     return;
-    // }
+    if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
+         arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
+         return;
+    }
+    if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
+         arena_side = LEFT_SIDE; // now we know what side of the arena we are on
+         return;
+    }
+    if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
+        return;
+    }
+    if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, NULL_STATE)){
+        return;
+    }
 }
 
 void rotate_left_off_wall_fn(){
     if (entered_state){
         stop_moving();
+        debug_green->led_on();
         start_timer(MAIN_TIMER, 1000);
         rotate_left(5);
     }
@@ -684,6 +696,7 @@ void rotate_left_off_wall_fn(){
 void rotate_right_off_wall_fn(){
     if (entered_state){
         stop_moving();
+        debug_green->led_on();
         start_timer(MAIN_TIMER, 1000);
         rotate_right(5);
     }
@@ -693,6 +706,8 @@ void rotate_right_off_wall_fn(){
 
 void rotate_on_server_sensor_fn(){
     if (entered_state){
+        debug_blue->led_on();
+        debug_green->led_on();
         stop_moving();
         if (arena_side == LEFT_SIDE) {
             rotate_left(5);
@@ -705,31 +720,34 @@ void rotate_on_server_sensor_fn(){
     }
 }
                 
-void get_coins_fn(){
+void get_coins_fn(){ // TO BE CHANGED
     if (entered_state){
         stop_moving();
         if (current_coin_count == 0) {
             current_server = exchanges[coin_collection_round];
             next_server =exchanges[coin_collection_round+1];
-            times_button_pressed_required = current_server;
         }
         start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
         extend_button_presser();
     }
     
     if (respond_to_timer(MAIN_TIMER, ACCOUNT_FOR_COINS)){
-        current_coin_count += 1;
-        coins_on_hopper +=1;
         times_button_pressed_required -= 1;
+        if (times_button_pressed_required == 0) {
+            current_coin_count += 1;
+            coins_on_hopper +=1;
+            total_coins += 1;
+        }
         return;
     }
     
 }
 
-void account_for_coins_fn(){
+void account_for_coins_fn(){ // TO BE CHANGED
     if (entered_state){
         start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
         retract_button_presser();
+        if (times_button_pressed_required == 0) times_button_pressed_required = total_coins + 1;
     }
     
     if (current_coin_count == current_server) {
@@ -808,7 +826,7 @@ void change_depository_in_motion_fn(){
     
     if (coins_on_hopper > next_server) { //CAN ONLY DO ONCE FINALIZED STRATEGY
         
-        return
+        return;
     }
   
 }
@@ -884,7 +902,7 @@ void null_state_fn(){
     // if (respond_to_both_bumpers_bumped( bumper_l, bumper_r, MOVE_FORWARD)) return;
     // if (respond_to_key(NULL_STATE)) return;
     // if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
-    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
+    //if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
     // if (respond_to_tape_on(tape_f, TAPE_F_SENSED)) return;
     // if (respond_to_tape_on(tape_c, TAPE_C_SENSED)) return;
 }
@@ -940,6 +958,7 @@ void setup_states() {
 
     // --- Actual states --- //
     state_functions[FIRST_ROTATE_TO_FIND_SERVER] = first_rotate_to_find_server_fn;
+    state_functions[PAUSE] = pause_fn;
     state_functions[MOVE_TOWARDS_SERVER] = move_towards_server_fn;
     state_functions [ROTATE_RIGHT_OFF_WALL] = rotate_right_off_wall_fn;
     state_functions [ROTATE_LEFT_OFF_WALL] = rotate_left_off_wall_fn;
