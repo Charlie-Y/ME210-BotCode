@@ -131,9 +131,11 @@ unsigned char entered_state;
 unsigned char arena_side; // which side of the board we are on
 static unsigned char current_state = STARTUP;
 
-unsigned char exchanges[] = {3, 5, 8};
+unsigned char exchanges[] = {3, 5, 8, 0};
 unsigned char coin_collection_round;
 unsigned char current_server;
+unsigned char next_server;
+unsigned char coins_on_hopper = 0;
 unsigned char current_coin_count = 0;
 unsigned char times_button_pressed_required;
 
@@ -708,6 +710,7 @@ void get_coins_fn(){
         stop_moving();
         if (current_coin_count == 0) {
             current_server = exchanges[coin_collection_round];
+            next_server =exchanges[coin_collection_round+1];
             times_button_pressed_required = current_server;
         }
         start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
@@ -716,6 +719,7 @@ void get_coins_fn(){
     
     if (respond_to_timer(MAIN_TIMER, ACCOUNT_FOR_COINS)){
         current_coin_count += 1;
+        coins_on_hopper +=1;
         times_button_pressed_required -= 1;
         return;
     }
@@ -792,10 +796,21 @@ void move_to_depository_fn(){
     if (respond_to_bumper_bumped(bumper_r,SETUP_TO_DUMP) || respond_to_bumper_bumped(bumper_l,SETUP_TO_DUMP)) return;
 }
 
-void change_depository_in_motion_fn(){
-  if (entered_state){
+void change_depository_in_motion_fn(){ 
+    if (entered_state) {
+        stop_moving;
+    }
     
-  }
+    if (coins_on_hopper < next_server) {
+        current_state = FIRST_ROTATE_TO_FIND_SERVER;
+        return;
+    }
+    
+    if (coins_on_hopper > next_server) { //CAN ONLY DO ONCE FINALIZED STRATEGY
+        
+        return
+    }
+  
 }
 
 void setup_to_dump_fn(){
@@ -825,6 +840,7 @@ void dump_fn(){
         stop_moving();
         start_timer(MAIN_TIMER, DUMPING_DELAY);
         extend_dumper();
+        coins_on_hopper -= current_server;
     }
     
     if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; // IS THIS NECESARY?
