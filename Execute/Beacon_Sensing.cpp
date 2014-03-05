@@ -59,6 +59,15 @@ unsigned char server_found(){
 
     if ( (frequency > SERVER_BEACON_LOW) && (frequency < SERVER_BEACON_HIGH)){
         // Serial.println("server_found true");
+        if (times_signal_ignored == NUM_IGNORES){
+            
+            return true;
+        } else if (times_signal_ignored < NUM_IGNORES){
+            Serial.print("Ignored: ");
+            Serial.println(frequency);
+            times_signal_ignored++;
+            return false;
+        }
         return true;
     } else {
         // Serial.println("server_found false");
@@ -72,8 +81,11 @@ unsigned char depository_found(){
         // Serial.println("depository_found true");
         // ignore the first few catches
         if (times_signal_ignored == NUM_IGNORES){
+            
             return true;
         } else if (times_signal_ignored < NUM_IGNORES){
+            Serial.print("Ignored: ");
+            Serial.println(frequency);
             times_signal_ignored++;
             return false;
         }
@@ -141,9 +153,9 @@ void set_frequency(){
     freq_count = 0;
     attach_beacon_sensor_interrupt();
 
-    Serial.print("       ");// hmm it works only if it printlines...
+    // Serial.print("       ");// hmm it works only if it printlines...
     // Serial.print("Frequency: ");
-    // Serial.println(frequency);
+    Serial.println(frequency);
 }
 
 unsigned long time_since_last(){

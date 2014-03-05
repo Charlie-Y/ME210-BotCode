@@ -2,9 +2,12 @@
 #include "Button_Pressing.h"
 #include "Servo.h" // Arduino Servo library
 
-#define SERVO_MIN           0 // the axis of the servo
-#define SERVO_MAX           90 // CCW from top
-#define SERVO_INTERVAL      90 // if this is too large does it explode? // why did it explode?
+// Right now the servo is bw, so the positions are a bit weird
+// and the math is backwards. 
+
+#define SERVO_MIN           90 // the axis of the servo
+#define SERVO_MAX           40 // CCW from top
+#define SERVO_INTERVAL      50 // if this is too large does it explode? // why did it explode?
 
 #define SERVO_EXTENDING     0
 #define SERVO_RETRACTING    1
@@ -25,27 +28,37 @@ void button_pressing_init( unsigned char button_presser){
 
 // extends the servo a bit
 void extend_button_presser(){
+    position -= SERVO_INTERVAL;
+
+    Serial.print("Extended to pos: ");
+    Serial.println(position);
+
     servo.write(position);
-    // Serial.print("Extended to pos: ");
-    // Serial.println(position);
-    position += SERVO_INTERVAL;
+
+
     current_servo_direction = SERVO_EXTENDING;
 }
 
 
 // retracts the servo a bit
 void retract_button_presser(){
+    position += SERVO_INTERVAL;
+
+    Serial.print("Retracted to pos: ");
+    Serial.println(position);
+
     servo.write(position);
-    position -= SERVO_INTERVAL;
+
+
     current_servo_direction = SERVO_RETRACTING;
 }
 
 // should return true if finished moving in any direction
 unsigned char button_presser_finished(){
     if (current_servo_direction == SERVO_EXTENDING){
-        return (position >= SERVO_MAX);
+        return (position <= SERVO_MAX);
     } else if (current_servo_direction == SERVO_RETRACTING) {
-        return (position <= SERVO_MIN);
+        return (position >= SERVO_MIN);
     }
     return true; 
 }

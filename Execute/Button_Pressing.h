@@ -4,7 +4,7 @@
 #define Button_Pressing_h
 
 
-#define BUTTON_PRESSER_DELAY       260 // a bit more than half a second
+#define BUTTON_PRESSER_DELAY       500 // a bit more than half a second
 
 // Its a servo. it uses the servo library. Needs only 1 pwm pin. cool!
 

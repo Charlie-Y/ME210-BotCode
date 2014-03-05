@@ -37,12 +37,12 @@
 // ---------  Output pins  ----------- //
 
 // motor wheel - RIGHT
-#define WHEEL_R_ENABLE_PIN      6 // pwm - dark green
-#define WHEEL_R_DIRECTION_PIN   7 //digital - black
+#define WHEEL_R_ENABLE_PIN      6 // pwm - 
+#define WHEEL_R_DIRECTION_PIN   7 //digital - light green
 
 // motor wheel - LEFT
-#define WHEEL_L_ENABLE_PIN      5 // pwm
-#define WHEEL_L_DIRECTION_PIN   4 //digital
+#define WHEEL_L_ENABLE_PIN      5 // pwm - dark green
+#define WHEEL_L_DIRECTION_PIN   4 //digital - black
     
 
 
@@ -56,6 +56,7 @@
 #define BUTTON_PRESSER_PIN   10 // pwm
 // dumping
 #define DUMPING_PIN 9 //pwm
+
 
 #define DEBUG_RED               11
 #define DEBUG_GREEN             12
@@ -83,13 +84,19 @@ typedef enum{
     //button presser test states
     EXTENDING_BUTTON_PRESSER,
     RETRACTING_BUTTON_PRESSER,
+    // hopper dumping test states
+    LIFTING_HOPPER,
+    LOWERING_HOPPER,
+
     //motor control test states
     MOVING_FORWARD,
     MOVING_BACKWARD,
     ROTATING_RIGHT,
     ROTATING_LEFT,
     // bumper test states
-    BUMPED,
+    BUMPED_B,
+    BUMPED_R,
+    BUMPED_L,
     STOP_STATE, // keyboard 's'
     NULL_STATE,
 
@@ -301,8 +308,26 @@ unsigned char respond_to_bumper_bumped(Bump_Sensor *bump_s, unsigned char new_st
     }
 }
 
+unsigned char respond_to_any_bumper_bumped(unsigned char new_state){
+    if (bumper_r->is_bumped() || bumper_l->is_bumped()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 unsigned char respond_to_bumper_not_bumped(Bump_Sensor *bump_s, unsigned char new_state){
     if (!bump_s->is_bumped()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_only_one_bumper_bumped(Bump_Sensor *bump_y, Bump_Sensor *bump_n, unsigned char new_state){
+    if (bump_y->is_bumped() && bump_n->is_not_bumped()){
         change_state_to(new_state);
         return true;
     } else {
@@ -328,7 +353,7 @@ unsigned char respond_to_only_l_bumper_bumped(Bump_Sensor *bump_l, Bump_Sensor *
     }
 }
 
-unsigned char respond_to_both_bumper_bumped(Bump_Sensor *bump_1, Bump_Sensor *bump_2, unsigned char new_state){
+unsigned char respond_to_both_bumpers_bumped(Bump_Sensor *bump_1, Bump_Sensor *bump_2, unsigned char new_state){
     if (bump_1->is_bumped() && bump_2->is_bumped()){
         change_state_to(new_state);
         return true;
@@ -339,6 +364,26 @@ unsigned char respond_to_both_bumper_bumped(Bump_Sensor *bump_1, Bump_Sensor *bu
 
 unsigned char respond_to_button_presser_finished(unsigned char new_state){
     if (button_presser_finished()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+unsigned char respond_to_timer_and_dumper_finished(unsigned char timer_id, unsigned char new_state){
+    if (TMRArd_IsTimerExpired(timer_id) && dumper_finished()){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+
+
+unsigned char respond_to_dumper_finished(unsigned char new_state){
+    if (dumper_finished()){
         change_state_to(new_state);
         return true;
     } else {
@@ -446,6 +491,7 @@ void extending_button_presser_fn(){
     if (entered_state){
         Serial.println("extending_button_presser_fn");
         extend_button_presser();
+        debug_green->led_on();
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
 
         // set servo timer
@@ -463,24 +509,54 @@ void retracting_button_presser_fn(){
     if (entered_state){
         Serial.println("retracting_button_presser_fn");
         //move servo back a bit
+        debug_blue->led_on();
         retract_button_presser();
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
     }
     if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
-    if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
+    if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return;
     // if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return;
     // if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
+}
+
+void lifting_hopper_fn(){
+    if (entered_state){
+        Serial.println("lifting_hopper_fn");
+        debug_blue->led_on();
+        start_timer(SERVO_TIMER, DUMPING_DELAY);
+        extend_dumper();
+    }
+    if (respond_to_key(NULL_STATE)) return;
+    if (respond_to_timer_and_dumper_finished(SERVO_TIMER, LOWERING_HOPPER)) return;
+    // if (respond_to_dumper_finished(LOWERING_HOPPER)) return; 
+    // if (respond_to_timer(SERVO_TIMER, LIFTING_HOPPER)) return; 
+}
+
+void lowering_hopper_fn(){
+if (entered_state){
+        Serial.println("lowering_hopper_fn");
+        debug_green->led_on();
+        start_timer(SERVO_TIMER, DUMPING_DELAY);
+        retract_dumper();
+    }
+    if (respond_to_key(NULL_STATE)) return;
+    // if (respond_to_dumper_finished(NULL_STATE)) return; 
+    if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return; 
 }
 
 void moving_forward_fn(){
     if (entered_state){
         Serial.println("moving_forward_fn");
-        start_timer(MAIN_TIMER, 2000);
+        start_timer(MAIN_TIMER, 1000);
         debug_blue->led_on();
-        move_forwards(5);
+        move_forwards(10);
+        // stop_moving();
+        // pivot_left(10);
+        // pivot_right(10);
     }
-    if (respond_to_key(ROTATING_LEFT)) return;
-    if (respond_to_timer(MAIN_TIMER, MOVING_BACKWARD));
+    // if (respond_to_key(ROTATING_LEFT)) return;
+    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    // if (respond_to_any_bumper_bumped(NULL_STATE)) return;
 }
 
 void moving_backward_fn(){
@@ -488,23 +564,26 @@ void moving_backward_fn(){
         debug_green->led_on();
         Serial.println("moving_backward_fn");
         start_timer(MAIN_TIMER, 2000);
-        move_backwards(5);
+        move_backwards(2);
+        // move_forwards(5);
 
     }
     if (respond_to_key(ROTATING_LEFT)) return;
-    if (respond_to_timer(MAIN_TIMER, MOVING_FORWARD));
+    if (respond_to_timer(MAIN_TIMER, NULL_STATE));
 }
 
 void rotating_right_fn(){
     if (entered_state){
         debug_green->led_on();
-        debug_blue->led_on();
         Serial.println("rotating_right_fn");
         start_timer(MAIN_TIMER, 2000);
-        rotate_right(5);
+        rotate_right(10);
     }
     if (respond_to_key(MOVING_FORWARD)) return;
-    if (respond_to_timer(MAIN_TIMER, ROTATING_LEFT)) return;
+    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    // if (respond_to_any_bumper_bumped(NULL_STATE)) return;
+
+    // if (respond_to_timer(MAIN_TIMER, ROTATING_LEFT)) return;
 }
 
 void rotating_left_fn(){
@@ -513,25 +592,47 @@ void rotating_left_fn(){
         debug_blue->led_on();
         Serial.println("rotating_left_fn");
         start_timer(MAIN_TIMER, 2000);
-        rotate_left(5);
+        rotate_left(10);
     }
     if (respond_to_key(MOVING_FORWARD)) return;
     if (respond_to_timer(MAIN_TIMER, ROTATING_RIGHT)) return;
 }
 
-void bumped_fn(){
+void bumped_r_fn(){
     if (entered_state){
         debug_red->led_on();
-        Serial.println("Bumped");
+        Serial.println("bumped_r_fn");
     }
     if (respond_to_bumper_not_bumped(bumper_r, NULL_STATE)) return;
+    if (respond_to_bumper_bumped(bumper_l, BUMPED_B)) return;
+
+}
+void bumped_l_fn(){
+    if (entered_state){
+        debug_blue->led_on();
+        Serial.println("bumped_l_fn");
+    }
+    if (respond_to_bumper_not_bumped(bumper_l, NULL_STATE)) return;
+    if (respond_to_bumper_bumped(bumper_r, BUMPED_B)) return;
+
+}
+
+void bumped_b_fn(){
+    if (entered_state){
+        debug_green->led_on();
+        Serial.println("bumped_b_fn");
+    }
+    if (respond_to_bumper_not_bumped(bumper_r, BUMPED_L)) return;
+    if (respond_to_bumper_not_bumped(bumper_l, BUMPED_R)) return;
 }
 
 // Actual states
 
 void first_rotate_to_find_server_fn(){
     if (entered_state){
-        rotate_right(5);
+        Serial.println("first_rotate_to_find_server_fn");
+        rotate_right(8);
+        debug_blue->led_on();
         start_timer(MAIN_TIMER, 6000);
     }
 
@@ -542,25 +643,30 @@ void first_rotate_to_find_server_fn(){
 void move_towards_server_fn(){
     if (entered_state){
         stop_moving();
-        move_forwards(5);
+        Serial.println("move_towards_server_fn");
+
+        move_forwards(8);
+        debug_red->led_on();
+
         start_timer(MAIN_TIMER, 5000);
     }
-
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
-        arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
-        return;
-    }
-    if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
-        arena_side = LEFT_SIDE; // now we know what side of the arena we are on
-        return;
-    }
-    if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
-        return;
-    }
-    if (respond_to_both_bumper_bumped(bumper_r, bumper_l, GET_COINS)){
-        return;
-    }
+    if (respond_to_bumper_bumped(bumper_r, NULL_STATE)) return ;
+    if (respond_to_bumper_bumped(bumper_l, NULL_STATE)) return ;
+    // if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
+    //     arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
+    //     return;
+    // }
+    // if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
+    //     arena_side = LEFT_SIDE; // now we know what side of the arena we are on
+    //     return;
+    // }
+    // if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
+    //     return;
+    // }
+    // if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, GET_COINS)){
+    //     return;
+    // }
 }
 
 void rotate_left_off_wall_fn(){
@@ -709,9 +815,9 @@ void setup_to_dump_fn(){
         }
     }
     
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY) return; //IS THIS NECESSARY
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; //IS THIS NECESSARY
     
-    if (respond_to_both_bumper_bumped(bumper_r, bumper_l,DUMP)) return;
+    if (respond_to_both_bumpers_bumped(bumper_r, bumper_l,DUMP)) return;
 }
     
 void dump_fn(){
@@ -721,7 +827,7 @@ void dump_fn(){
         extend_dumper();
     }
     
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY) return; // IS THIS NECESARY?
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; // IS THIS NECESARY?
     
     if(respond_to_timer(MAIN_TIMER, RETRACT_DUMPER)) return;
 }
@@ -731,11 +837,11 @@ void retract_dumper_fn(){
         stop_moving();
         start_timer(MAIN_TIMER, DUMPING_DELAY);
         retract_dumper();
-        reverse();
+        move_backwards(5);
     }
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY) return; // IS THIS NECESARY?
+    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; // IS THIS NECESARY?
         
-    if (respond_to_timer(MAIN_TIMER, FIRST_ROTATE_TO_FIND_SERVER)return;
+    if (respond_to_timer(MAIN_TIMER, FIRST_ROTATE_TO_FIND_SERVER))return;
 }
 
 // -- Various debugging states -- //
@@ -744,17 +850,27 @@ void retract_dumper_fn(){
 void null_state_fn(){
     if (entered_state){
         Serial.println("null_state_fn");
+        debug_red->led_on();
+        debug_green->led_on();
+        debug_blue->led_on();
     }
-    // Serial.println("wtf");
     // Serial.println(digitalRead(BUMPER_R_PIN));
     // change_state_to(MOVING_FORWARD);
     // change_state_to(EXTENDING_BUTTON_PRESSER);
-    // if (respond_to_bumper_bumped(bumper_r, BUMPED)) return;
-    if (respond_to_key(NULL_STATE)) return;
-    if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
+    // change_state_to(LIFTING_HOPPER);
+    // change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
+    // if (respond_to_key(LIFTING_HOPPER)) return;
+    // if (respond_to_any_bumper_bumped( MOVING_FORWARD)) return;
+    // if (respond_to_bumper_bumped(bumper_r, MOVING_FORWARD)) return;
+    // if (respond_to_bumper_bumped(bumper_l, ROTATING_RIGHT)) return;
+    // if (respond_to_bumper_bumped(bumper_r, FIRST_ROTATE_TO_FIND_SERVER)) return;
+    // if (respond_to_bumper_bumped(bumper_l, EXTENDING_BUTTON_PRESSER)) return;
+    // if (respond_to_both_bumpers_bumped( bumper_l, bumper_r, MOVE_FORWARD)) return;
+    // if (respond_to_key(NULL_STATE)) return;
+    // if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
     if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
-    // if (respond_to_tape_on(tape_r, TAPE_R_SENSED)) return;
-    // if (respond_to_tape_on(tape_l, TAPE_L_SENSED)) return;
+    // if (respond_to_tape_on(tape_f, TAPE_F_SENSED)) return;
+    // if (respond_to_tape_on(tape_c, TAPE_C_SENSED)) return;
 }
 
 void stop_state_fn(){
@@ -792,11 +908,17 @@ void setup_states() {
     state_functions[TAPE_BOTH_SENSED] = tape_both_sensed_fn;
     state_functions[EXTENDING_BUTTON_PRESSER] = extending_button_presser_fn;
     state_functions[RETRACTING_BUTTON_PRESSER] = retracting_button_presser_fn;
+    state_functions[LIFTING_HOPPER] = lifting_hopper_fn;
+    state_functions[LOWERING_HOPPER] = lowering_hopper_fn;
+    
+
     state_functions[MOVING_FORWARD] = moving_forward_fn;
     state_functions[MOVING_BACKWARD] = moving_backward_fn;
     state_functions[ROTATING_LEFT] = rotating_left_fn;
     state_functions[ROTATING_RIGHT] = rotating_right_fn;
-    state_functions[BUMPED] = bumped_fn;
+    state_functions[BUMPED_R] = bumped_r_fn;
+    state_functions[BUMPED_L] = bumped_l_fn;
+    state_functions[BUMPED_B] = bumped_b_fn;
     state_functions[NULL_STATE] = null_state_fn;
     state_functions[STOP_STATE] = stop_state_fn;
 
