@@ -24,8 +24,11 @@ void move_backwards(unsigned char);
 
 // Pulse controls
 void motor_state_changed();
+
 void pulse_forward();
-void check_pulse();
+void pulse_rotate_right();
+void pulse_arc_back(unsigned char direction);
+void check_pulse(); // THIS MUST BE CALLED if you are using any pulse functions
 
 void stop_moving();
 

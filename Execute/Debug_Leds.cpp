@@ -38,6 +38,14 @@ void Debug_Led::toggle(){
     }
 }
 
+// void flash_like_you_mean_it(){
+
+// }
+
+// void stop_flashing___please(){
+    
+// }
+
 
 // void init(unsigned char r,unsigned char g,unsigned char b){
 //     red_pin = r;

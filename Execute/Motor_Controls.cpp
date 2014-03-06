@@ -16,6 +16,8 @@ static unsigned char wheel_l_dir_pin;
 static unsigned char wheel_l_enable_pin;
 
 static unsigned char is_pulsing;
+static unsigned char pulse_direction;
+static unsigned int current_pulse_delay;
 void (*pulse_fn)();// pointer to last pulse function
 
 /* -------- Prototypes -------- */
@@ -24,7 +26,7 @@ void r_speed(unsigned char);
 void l_speed(unsigned char);
 void r_dir(unsigned char);
 void l_dir(unsigned char);
-void start_pulse_timer();
+void start_pulse_timer(int);
 void no_pulse(); // a palceholder function that doesn't do anything;
 unsigned char pulse_timer_finished();
 
@@ -63,6 +65,7 @@ void motor_state_changed(){
     // reset the pulse timer?
     is_pulsing = false;
     pulse_fn = no_pulse;
+    current_pulse_delay = PULSE_TIMER_DELAY;
 }
 
 void no_pulse(){
@@ -70,42 +73,82 @@ void no_pulse(){
 }
 
 // i could write a wrapper pulse fn. but no. 
+// each pulse function needs to:
+    // call start_timer
+    // set a current_pulse_delay - for how long the pulse is off
+    // set the right pulse_fn pointer
+    // set is_pulsing to true;
 
 void pulse_forward(){ // be able to pass in the interval?
     // Serial.println("pulse_forward");
     move_forwards(10);
-    start_pulse_timer();
+    current_pulse_delay = 100;
+    start_pulse_timer(400);
     pulse_fn = pulse_forward;
     is_pulsing = true;
 }
 
 void pulse_backwards(){
     move_backwards(10);
-    start_pulse_timer();
+    current_pulse_delay = 100;
+    start_pulse_timer(400);
     pulse_fn = pulse_forward;
     is_pulsing = true;
 }
 
 void pulse_rotate_right(){
     // Serial.println("pulse_rotate_right");
+    // this should be faster... should make delay a variable
     rotate_right(10);
-    start_pulse_timer();
+    current_pulse_delay = 100;
+    start_pulse_timer(130);
     pulse_fn = pulse_rotate_right;
     is_pulsing = true;
 }
 
 
 
+void pulse_arc_back_inner(){
+    is_pulsing = true;
+    pulse_fn = pulse_arc_back_inner;
+    start_pulse_timer(500);
+    current_pulse_delay = 100;
+
+    r_dir(WHEEL_BACKWARD);
+    l_dir(WHEEL_BACKWARD);
+
+    if (pulse_direction == DIR_LEFT){
+        // arc back to the left. oriented facing forward
+        // Serial.println("BACK LEFT");
+        r_speed(10);
+        l_speed(8);
+    } else if (pulse_direction == DIR_RIGHT){
+        // Serial.println("BACK RIGHT");
+
+        r_speed(8);
+        l_speed(10);
+    }
+
+}
+
+//wrapper function and class variable that goes around function pointer
+// issues
+void pulse_arc_back(unsigned char direction){
+    pulse_direction = direction;
+    pulse_arc_back_inner();
+}
+
+
 void check_pulse(){
     if (is_pulsing){
-        Serial.println("Pulsing");
+        // Serial.println("Pulsing");
     } else {
-        Serial.println("not pulsing");
+        // Serial.println("not pulsing");
     }
     if (is_pulsing && pulse_timer_finished()){
         stop_moving();
         is_pulsing = false;
-        start_pulse_timer(); // delay timer
+        start_pulse_timer(current_pulse_delay); // delay timer
     }
     if (!is_pulsing && pulse_timer_finished()){
         is_pulsing = true;
@@ -113,9 +156,9 @@ void check_pulse(){
     }
 }
 
-void start_pulse_timer(){
+void start_pulse_timer(int delay_length){
     // starts the pulse timer
-    TMRArd_InitTimer(PULSE_TIMER_ID, PULSE_TIMER_DELAY);
+    TMRArd_InitTimer(PULSE_TIMER_ID, delay_length);
 }
 
 unsigned char pulse_timer_finished(){
@@ -191,6 +234,23 @@ void arc_left(unsigned char speed, unsigned char ratio){
 
 void arc_dir(unsigned char speed, unsigned char some_param, unsigned char direction){
 
+}
+
+void arc_back(unsigned char direction){
+    r_dir(WHEEL_BACKWARD);
+    l_dir(WHEEL_BACKWARD);
+
+    if (direction == DIR_LEFT){
+        // arc back to the left. oriented facing forward
+        // Serial.println("BACK LEFT");
+        r_speed(10);
+        l_speed(9);
+    } else if (direction == DIR_RIGHT){
+        // Serial.println("BACK RIGHT");
+
+        r_speed(9);
+        l_speed(10);
+    }
 }
 
 /* -------- Private functions ----- */

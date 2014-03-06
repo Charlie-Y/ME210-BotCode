@@ -84,8 +84,7 @@ typedef enum{
     TAPE_C_SENSED,
     TAPE_BOTH_SENSED,
     //button presser test states
-    EXTENDING_BUTTON_PRESSER,
-    RETRACTING_BUTTON_PRESSER,
+    //moved to actual states. I'm a real state now
     // hopper dumping test states
     LIFTING_HOPPER,
     LOWERING_HOPPER,
@@ -97,6 +96,7 @@ typedef enum{
     ROTATING_LEFT,
     PULSE_FORWARD,
     PULSE_ROTATE_RIGHT,
+    PULSE_ARC_BACK,
     // bumper test states
     BUMPED_B,
     BUMPED_R,
@@ -106,9 +106,23 @@ typedef enum{
 
     // --- Actual states --- //
 
+    // Getting to the server
     FIRST_ROTATE_TO_FIND_SERVER,
-    PAUSE,
+    FIRST_MOVE_TOWARDS_SERVER,
+    ARC_BACK_OFF_WALL,
+    POST_ARC_SERVER_SEARCH,
     MOVE_TOWARDS_SERVER,
+    CENTERED_ON_SERVER_TAPE,
+    CORRECTING_ROTATION_1,
+    CORRECTING_ROTATION_2,
+    FINAL_ALIGN_TO_SERVER,
+    MOVING_FW_TO_ALIGN_WITH_SERVER,
+    BUMPED_ALIGNING_WITH_SERVER,
+
+    EXTENDING_BUTTON_PRESSER,
+    RETRACTING_BUTTON_PRESSER,
+
+    PAUSE,
     ROTATE_RIGHT_OFF_WALL,
     ROTATE_LEFT_OFF_WALL,
     ROTATE_ON_SERVER_SENSOR,
@@ -131,20 +145,22 @@ typedef enum{
 void (*state_functions[NUM_STATES])(); 
 
 // the state the machine is in
-unsigned char state_changed;
-unsigned char entered_state;
-unsigned char arena_side; // which side of the board we are on
-unsigned char state_init_finished; // a debounce statement
+static unsigned char state_changed;
+static unsigned char entered_state;
+static unsigned char arena_side; // which side of the board we are on
+static unsigned char state_init_finished; // a debounce statement
 static unsigned char current_state = STARTUP;
 
-unsigned char exchanges[] = {8, 5, 3, 0};
-unsigned char coin_collection_round;
-unsigned char current_server;
-unsigned char next_server;
-unsigned char coins_on_hopper = 0;
-unsigned char current_coin_count = 0;
-unsigned char times_button_pressed_required = 1;
-unsigned char total_coins = 0;
+static unsigned char direction_of_interest;
+
+static unsigned char exchanges[] = {8, 5, 3, 0};
+static unsigned char coin_collection_round;
+static unsigned char current_server;
+static unsigned char next_server;
+static unsigned char coins_on_hopper = 0;
+static unsigned char current_coin_count = 0;
+static unsigned char times_button_pressed_required = 1;
+static unsigned char total_coins = 0;
 
 
 // Objects 
@@ -500,37 +516,7 @@ void tape_both_sensed_fn(){
 }
 
 
-void extending_button_presser_fn(){
-    if (entered_state){
-        Serial.println("extending_button_presser_fn");
-        extend_button_presser();
-        debug_green->led_on();
-        start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
 
-        // set servo timer
-    }
-
-    // reenter the state and reincrement the servo
-    if (respond_to_key(EXTENDING_BUTTON_PRESSER)) return;
-    if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return; // uhh...
-    // if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return; 
-    // if (respond_to_button_presser_finished(RETRACTING_BUTTON_PRESSER)) return;
-}
-
-
-void retracting_button_presser_fn(){
-    if (entered_state){
-        Serial.println("retracting_button_presser_fn");
-        //move servo back a bit
-        debug_blue->led_on();
-        retract_button_presser();
-        start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
-    }
-    if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
-    if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return;
-    // if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return;
-    // if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
-}
 
 void lifting_hopper_fn(){
     if (entered_state){
@@ -639,26 +625,6 @@ void bumped_b_fn(){
     if (respond_to_bumper_not_bumped(bumper_l, BUMPED_R)) return;
 }
 
-// void pulse_forward_fn(){
-//     if (entered_state){
-//         move_forwards(10);
-//         start_state_init_timer(MOTOR_PULSE_LENGTH);
-//         debug_blue->led_on();
-//         // Serial.println("Pulsing fw");
-//     }
-//     if (state_init_timer_finished()){
-//         stop_moving();
-//         debug_blue->led_off();
-//         start_timer(MAIN_TIMER, MOTOR_PULSE_LENGTH);
-//         // Serial.println("Pulsing stopped");
-//     }
-//     if (state_init_finished){
-//         if(respond_to_timer(MAIN_TIMER, PULSE_FORWARD)) return;
-//     }
-//     if (respond_to_key(NULL_STATE)) return ;
-
-// }
-
 void pulse_forward_fn(){
     if (entered_state){
         pulse_forward();
@@ -670,36 +636,246 @@ void pulse_forward_fn(){
 
 void pulse_rotate_right_fn(){
     if (entered_state){
-        rotate_right(10);
-        start_state_init_timer(MOTOR_PULSE_LENGTH);
+        pulse_rotate_right();
         debug_red->led_on();
-    } 
-    if (state_init_timer_finished()){
-        stop_moving();
-        debug_red->led_off();
-        start_timer(MAIN_TIMER, MOTOR_PULSE_LENGTH);
     }
-    if (state_init_finished){
-        if (respond_to_timer(MAIN_TIMER, PULSE_ROTATE_RIGHT));
-    }
-    if (respond_to_key(NULL_STATE)) return;
+    check_pulse();
     if (respond_to_server_found(PULSE_FORWARD)) return;
 }
+
+void pulse_arc_back_fn(){
+    if (entered_state){
+        Serial.println("Pulsing arc back");
+        pulse_arc_back(DIR_RIGHT);
+        debug_green->led_on();
+    }
+    check_pulse();
+
+}
 // Actual states
+
+
+
+// * --- Actual States ------ 
+// *
+// *
+// *
+// *
 
 void first_rotate_to_find_server_fn(){
     if (entered_state){
         Serial.println("first_rotate_to_find_server_fn");
-        rotate_right(8);
+        // rotate_right(8);
+        pulse_rotate_right();
         debug_blue->led_on();
         start_timer(MAIN_TIMER, 6000);
     }
+    check_pulse();
 
-    if (respond_to_server_found(PAUSE)) return ;
+    if (respond_to_server_found(CORRECTING_ROTATION_1)) return ;
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
 }
 
-void pause_fn(){
+
+void first_move_towards_server_fn(){
+    if (entered_state){
+        Serial.println("first_move_towards_server_fn");
+        // move_forwards(7);
+        pulse_forward();
+        debug_red->led_on();
+        // start_timer(MAIN_TIMER, 5000);
+    }
+
+    check_pulse();
+
+    // if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ARC_BACK_OFF_WALL)) {
+        arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
+        direction_of_interest = DIR_LEFT; // you want to arc back and to the left
+        return;
+    }
+    if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ARC_BACK_OFF_WALL)) {
+        arena_side = LEFT_SIDE; // now we know what side of the arena we are on
+        direction_of_interest = DIR_RIGHT; // you want to arc back and right
+        return;
+    }
+    // if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
+    //     return;
+    // }
+    if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, NULL_STATE)){
+        return;
+    }
+}
+
+void move_towards_server_fn(){
+    // just moving to the server. hum didddly dum...
+    if (entered_state){
+        debug_red->led_on();
+        pulse_forward();
+    }
+    check_pulse();
+    if (respond_to_bumper_bumped(bumper_r, ARC_BACK_OFF_WALL)) {
+        direction_of_interest = DIR_LEFT;
+        return;
+    }
+    if (respond_to_bumper_bumped(bumper_l, ARC_BACK_OFF_WALL)) {
+        direction_of_interest = DIR_RIGHT;
+        return;
+    }
+    if (respond_to_tape_on(tape_c, CENTERED_ON_SERVER_TAPE)) return;
+}
+
+void post_arc_server_search_fn(){
+    if (entered_state){
+        pulse_rotate_right();
+        debug_blue->led_on();
+    }
+    check_pulse();
+    if (respond_to_server_found(CORRECTING_ROTATION_2)) return;
+}
+
+void correcting_rotation_1_fn(){
+    if (entered_state){
+        start_state_init_timer(400);
+        debug_green->led_on();
+    }
+    if (state_init_timer_finished()){
+        rotate_left(10);
+        state_init_finished = true;
+        start_timer(MAIN_TIMER, 100);
+        debug_green->led_off();
+        debug_red->led_off();
+    }
+    if (state_init_finished){
+        if (respond_to_timer(MAIN_TIMER, FIRST_MOVE_TOWARDS_SERVER)) return;
+    }
+}
+
+// figure out how to make these into substates or something...
+void correcting_rotation_2_fn(){
+    if (entered_state){
+        start_state_init_timer(400);
+        debug_green->led_on();
+    }
+    if (state_init_timer_finished()){
+        rotate_left(10);
+        state_init_finished = true;
+        start_timer(MAIN_TIMER, 100);
+        debug_green->led_off();
+        debug_red->led_off();
+    }
+    if (state_init_finished){
+        if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
+    }
+}
+
+void arc_back_off_wall_fn(){
+    if (entered_state){
+        pulse_arc_back(direction_of_interest);
+        start_timer(MAIN_TIMER, 4000);
+        debug_green->led_on();
+    }
+    check_pulse();
+    if (respond_to_timer(MAIN_TIMER, POST_ARC_SERVER_SEARCH)) return;
+    if (respond_to_tape_on(tape_c, CENTERED_ON_SERVER_TAPE)) return;
+}
+
+void centered_on_server_tape_fn(){
+    if (entered_state){
+        debug_red->led_on();
+        debug_green->led_on();
+        debug_blue->led_on();
+        start_timer(MAIN_TIMER, 1000);
+    }
+    if (respond_to_timer(MAIN_TIMER, FINAL_ALIGN_TO_SERVER)) return;
+
+}
+
+// back up a bit, rotate till it sees the beacon. rotate back to compensate
+// move forward 
+// if one bumper is hit, then pivot until the other is hit.
+
+// start pressing the button
+///
+
+void final_align_to_server_fn(){
+    if (entered_state){
+        pulse_rotate_right();
+        debug_blue->led_on();
+    }
+    check_pulse();
+    if (respond_to_server_found(MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
+}
+
+void moving_fw_to_align_with_server_fn(){
+    if(entered_state){
+        move_forwards(10);
+        // move_forwards(10);
+        // pulse_forward();
+        debug_red->led_on();
+    }
+    // check_pulse();
+    if (respond_to_any_bumper_bumped(EXTENDING_BUTTON_PRESSER)) return;
+    // if (respond_to_bumper_bumped(bumper_l, BUMPED_ALIGNING_WITH_SERVER)){
+    //     direction_of_interest = DIR_LEFT;//want to pivot right
+    //     return;
+    // }
+    // if (respond_to_bumper_bumped(bumper_r, BUMPED_ALIGNING_WITH_SERVER)){
+    //     direction_of_interest = DIR_RIGHT;
+    //     return;
+    // }
+}
+
+//one bumper is down, now pivot until the other is down
+void bumped_aligning_with_server_fn(){
+    if (entered_state){
+        if (direction_of_interest == DIR_LEFT){
+            debug_blue->led_on();
+            pivot_left(10);
+        } else if (direction_of_interest == DIR_RIGHT){
+            debug_green->led_on();
+            pivot_right(10);
+        }
+    }
+    if (respond_to_both_bumpers_bumped(bumper_l, bumper_r, EXTENDING_BUTTON_PRESSER)) return;
+}
+
+void extending_button_presser_fn(){
+    if (entered_state){
+        Serial.println("extending_button_presser_fn");
+        extend_button_presser();
+        debug_green->led_on();
+        start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
+
+        // set servo timer
+    }
+
+    // reenter the state and reincrement the servo
+    if (respond_to_key(EXTENDING_BUTTON_PRESSER)) return;
+    if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return; // uhh...
+    // if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return; 
+    // if (respond_to_button_presser_finished(RETRACTING_BUTTON_PRESSER)) return;
+}
+
+
+void retracting_button_presser_fn(){
+    if (entered_state){
+        Serial.println("retracting_button_presser_fn");
+        //move servo back a bit
+        debug_blue->led_on();
+        retract_button_presser();
+        start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
+    }
+    if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
+    if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
+    // if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return;
+    // if (respond_to_timer(SERVO_TIMER, RETRACTING_BUTTON_PRESSER)) return;
+    // if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
+}
+
+///
+
+void pause_fn(){ // not using this one
     // things that we do when entering state
     if (entered_state){
         stop_moving();
@@ -716,32 +892,6 @@ void pause_fn(){
         if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return ;
     }
 }
-
-void move_towards_server_fn(){
-    if (entered_state){
-        stop_moving();
-        Serial.println("move_towards_server_fn");
-        move_forwards(7);
-        debug_red->led_on();
-        start_timer(MAIN_TIMER, 5000);
-    }
-    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
-         arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
-         return;
-    }
-    if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
-         arena_side = LEFT_SIDE; // now we know what side of the arena we are on
-         return;
-    }
-    if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
-        return;
-    }
-    if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, NULL_STATE)){
-        return;
-    }
-}
-
 
 void rotate_left_off_wall_fn(){
     if (entered_state){
@@ -943,16 +1093,18 @@ void null_state_fn(){
         debug_red->led_on();
         debug_green->led_on();
         debug_blue->led_on();
-        move_forwards(8);
+        // move_forwards(8);
     }
-
     // Serial.println(digitalRead(BUMPER_R_PIN));
     // change_state_to(MOVING_FORWARD);
+    // change_state_to(PULSE_ARC_BACK);
     // change_state_to(PULSE_ROTATE_RIGHT);
-    change_state_to(PULSE_FORWARD);
+    // change_state_to(PULSE_FORWARD);
     // change_state_to(EXTENDING_BUTTON_PRESSER);
     // change_state_to(LIFTING_HOPPER);
-    // change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
+    change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
+    // change_state_to(CENTERED_ON_SERVER_TAPE);
+    // change_state_to(FINAL_ALIGN_TO_SERVER);
     // if (respond_to_key(LIFTING_HOPPER)) return;
     // if (respond_to_key(FIRST_ROTATE_TO_FIND_SERVER)) return;
     // if (respond_to_any_bumper_bumped( MOVING_FORWARD)) return;
@@ -1009,6 +1161,7 @@ unsigned char state_init_timer_finished(){
 
 // -------------- Setup Methods ------------ //
 // this goes at the end because the functions need to be defined first
+// i'm not going to write all the prototypes just so i can write this at the front...
 void setup_states() {
     //link each state to a function
     state_functions[STARTUP] = startup_fn;
@@ -1031,6 +1184,7 @@ void setup_states() {
     state_functions[ROTATING_RIGHT] = rotating_right_fn;
     state_functions[PULSE_FORWARD] = pulse_forward_fn;
     state_functions[PULSE_ROTATE_RIGHT] = pulse_rotate_right_fn;
+    state_functions[PULSE_ARC_BACK] = pulse_arc_back_fn;
 
     state_functions[BUMPED_R] = bumped_r_fn;
     state_functions[BUMPED_L] = bumped_l_fn;
@@ -1040,20 +1194,31 @@ void setup_states() {
 
     // --- Actual states --- //
     state_functions[FIRST_ROTATE_TO_FIND_SERVER] = first_rotate_to_find_server_fn;
-    state_functions[PAUSE] = pause_fn;
+    state_functions[FIRST_MOVE_TOWARDS_SERVER] = first_move_towards_server_fn;
+    state_functions[ARC_BACK_OFF_WALL] = arc_back_off_wall_fn;
+    state_functions[POST_ARC_SERVER_SEARCH] = post_arc_server_search_fn;
     state_functions[MOVE_TOWARDS_SERVER] = move_towards_server_fn;
-    state_functions [ROTATE_RIGHT_OFF_WALL] = rotate_right_off_wall_fn;
-    state_functions [ROTATE_LEFT_OFF_WALL] = rotate_left_off_wall_fn;
-    state_functions [ROTATE_ON_SERVER_SENSOR] = rotate_on_server_sensor_fn;
-    state_functions [GET_COINS] = get_coins_fn;
-    state_functions [ACCOUNT_FOR_COINS] = account_for_coins_fn;
-    state_functions [SETUP_TO_CHOOSE_DEPOSITORY] = setup_to_choose_depository_fn;
-    state_functions [CHOOSE_DEPOSITORY] = choose_depository_fn;
-    state_functions [MOVE_TO_DEPOSITORY] = move_to_depository_fn;
-    state_functions [CHANGE_DEPOSITORY_IN_MOTION] = change_depository_in_motion_fn;
-    state_functions [SETUP_TO_DUMP] = setup_to_dump_fn;
-    state_functions [DUMP] = dump_fn;
-    state_functions [RETRACT_DUMPER] = retract_dumper_fn;
+    state_functions[CENTERED_ON_SERVER_TAPE] = centered_on_server_tape_fn;
+    state_functions[CORRECTING_ROTATION_1] = correcting_rotation_1_fn;
+    state_functions[CORRECTING_ROTATION_2] = correcting_rotation_2_fn;
+    state_functions[FINAL_ALIGN_TO_SERVER] = final_align_to_server_fn;
+    state_functions[MOVING_FW_TO_ALIGN_WITH_SERVER] = moving_fw_to_align_with_server_fn;
+    state_functions[BUMPED_ALIGNING_WITH_SERVER] = bumped_aligning_with_server_fn;
+    
+
+    state_functions[PAUSE] = pause_fn;
+    state_functions[ROTATE_RIGHT_OFF_WALL] = rotate_right_off_wall_fn;
+    state_functions[ROTATE_LEFT_OFF_WALL] = rotate_left_off_wall_fn;
+    state_functions[ROTATE_ON_SERVER_SENSOR] = rotate_on_server_sensor_fn;
+    state_functions[GET_COINS] = get_coins_fn;
+    state_functions[ACCOUNT_FOR_COINS] = account_for_coins_fn;
+    state_functions[SETUP_TO_CHOOSE_DEPOSITORY] = setup_to_choose_depository_fn;
+    state_functions[CHOOSE_DEPOSITORY] = choose_depository_fn;
+    state_functions[MOVE_TO_DEPOSITORY] = move_to_depository_fn;
+    state_functions[CHANGE_DEPOSITORY_IN_MOTION] = change_depository_in_motion_fn;
+    state_functions[SETUP_TO_DUMP] = setup_to_dump_fn;
+    state_functions[DUMP] = dump_fn;
+    state_functions[RETRACT_DUMPER] = retract_dumper_fn;
 
 
 }
