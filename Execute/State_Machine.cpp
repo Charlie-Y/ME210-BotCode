@@ -631,7 +631,7 @@ void bumped_b_fn(){
 void first_rotate_to_find_server_fn(){
     if (entered_state){
         Serial.println("first_rotate_to_find_server_fn");
-        rotate_right(8);
+        rotate_right(10);
         debug_blue->led_on();
         start_timer(MAIN_TIMER, 6000);
     }
@@ -645,14 +645,14 @@ void move_towards_server_fn(){
         stop_moving();
         Serial.println("move_towards_server_fn");
 
-        move_forwards(8);
+        move_forwards(10);
         debug_red->led_on();
 
         start_timer(MAIN_TIMER, 5000);
     }
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    if (respond_to_bumper_bumped(bumper_r, NULL_STATE)) return ;
-    if (respond_to_bumper_bumped(bumper_l, NULL_STATE)) return ;
+    // if (respond_to_bumper_bumped(bumper_r, NULL_STATE)) return ;
+    // if (respond_to_bumper_bumped(bumper_l, NULL_STATE)) return ;
     // if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
     //     arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
     //     return;
@@ -853,6 +853,7 @@ void null_state_fn(){
         debug_red->led_on();
         debug_green->led_on();
         debug_blue->led_on();
+        move_forwards(8);
     }
     // Serial.println(digitalRead(BUMPER_R_PIN));
     // change_state_to(MOVING_FORWARD);
@@ -860,6 +861,7 @@ void null_state_fn(){
     // change_state_to(LIFTING_HOPPER);
     // change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
     // if (respond_to_key(LIFTING_HOPPER)) return;
+    // if (respond_to_key(FIRST_ROTATE_TO_FIND_SERVER)) return;
     // if (respond_to_any_bumper_bumped( MOVING_FORWARD)) return;
     // if (respond_to_bumper_bumped(bumper_r, MOVING_FORWARD)) return;
     // if (respond_to_bumper_bumped(bumper_l, ROTATING_RIGHT)) return;
@@ -868,7 +870,7 @@ void null_state_fn(){
     // if (respond_to_both_bumpers_bumped( bumper_l, bumper_r, MOVE_FORWARD)) return;
     // if (respond_to_key(NULL_STATE)) return;
     // if (respond_to_depository_found(DEPO_BEACON_SENSED)) return;
-    if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
+    // if (respond_to_server_found(SERVER_BEACON_SENSED)) return;
     // if (respond_to_tape_on(tape_f, TAPE_F_SENSED)) return;
     // if (respond_to_tape_on(tape_c, TAPE_C_SENSED)) return;
 }

@@ -138,7 +138,7 @@ void r_speed(unsigned char speed){
 }
 
 void l_speed(unsigned char speed){
-    unsigned char translated_speed = translate_speed(speed);
+    unsigned char translated_speed = translate_speed(speed );
     analogWrite(wheel_l_enable_pin, translated_speed);
 }
 
