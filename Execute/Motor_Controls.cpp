@@ -5,6 +5,7 @@
 #define SPEED_VALUES        11
 #define PULSE_TIMER_ID      3
 #define PULSE_TIMER_DELAY   200
+#define BATTERY_ADJUST      0
 
 static const int speeds [SPEED_VALUES] = {0, 26, 51, 77, 102, 127, 153, 179, 204, 229, 255 };
 
@@ -82,17 +83,49 @@ void no_pulse(){
 void pulse_forward(){ // be able to pass in the interval?
     // Serial.println("pulse_forward");
     move_forwards(10);
-    current_pulse_delay = 100;
-    start_pulse_timer(400);
+    current_pulse_delay = 120;
+    start_pulse_timer(80);
     pulse_fn = pulse_forward;
     is_pulsing = true;
 }
 
-void pulse_backwards(){
+void pulse_fine_forward(){
+    move_forwards(10);
+    current_pulse_delay = 200;
+    start_pulse_timer(40);
+    pulse_fn = pulse_fine_forward;
+    is_pulsing = true;
+}
+
+void pulse_backward(){
     move_backwards(10);
-    current_pulse_delay = 100;
-    start_pulse_timer(400);
+    current_pulse_delay = 200;
+    start_pulse_timer(100);
     pulse_fn = pulse_forward;
+    is_pulsing = true;
+}
+
+void pulse_fine_backward(){
+    move_backwards(9);
+    current_pulse_delay = 200;
+    start_pulse_timer(100);
+    pulse_fn = pulse_fine_backward;
+    is_pulsing = true;
+}
+
+void pulse_fine_rotate_right(){
+    rotate_right(9);
+    current_pulse_delay = 140;
+    start_pulse_timer(40);
+    pulse_fn = pulse_fine_rotate_right;
+    is_pulsing = true;
+}
+
+void pulse_fine_rotate_left(){
+    rotate_left(9);
+    current_pulse_delay = 140;
+    start_pulse_timer(40);
+    pulse_fn = pulse_fine_rotate_left;
     is_pulsing = true;
 }
 
@@ -100,18 +133,26 @@ void pulse_rotate_right(){
     // Serial.println("pulse_rotate_right");
     // this should be faster... should make delay a variable
     rotate_right(10);
-    current_pulse_delay = 100;
-    start_pulse_timer(130);
+    current_pulse_delay = 150;
+    start_pulse_timer(40);
     pulse_fn = pulse_rotate_right;
     is_pulsing = true;
 }
 
-
+void pulse_rotate_left(){
+    // Serial.println("pulse_rotate_right");
+    // this should be faster... should make delay a variable
+    rotate_left(10);
+    current_pulse_delay = 150;
+    start_pulse_timer(40);
+    pulse_fn = pulse_rotate_left;
+    is_pulsing = true;
+}
 
 void pulse_arc_back_inner(){
     is_pulsing = true;
     pulse_fn = pulse_arc_back_inner;
-    start_pulse_timer(500);
+    start_pulse_timer(130);
     current_pulse_delay = 100;
 
     r_dir(WHEEL_BACKWARD);
@@ -121,14 +162,12 @@ void pulse_arc_back_inner(){
         // arc back to the left. oriented facing forward
         // Serial.println("BACK LEFT");
         r_speed(10);
-        l_speed(8);
+        l_speed(4);
     } else if (pulse_direction == DIR_RIGHT){
         // Serial.println("BACK RIGHT");
-
-        r_speed(8);
+        r_speed(4);
         l_speed(10);
     }
-
 }
 
 //wrapper function and class variable that goes around function pointer
@@ -204,15 +243,15 @@ void rotate_dir(unsigned char speed, unsigned char direction){
 
 // Pivoting on one wheel .
 void pivot_right(unsigned char speed){
-    r_speed(0);
-    l_speed(speed);
+    r_speed(speed);
+    l_speed(0);
     l_dir(WHEEL_FORWARD);
 }
 
 void pivot_left(unsigned char speed){
-    r_speed(speed);
-    l_speed(0);
-    l_dir(WHEEL_FORWARD);
+    l_speed(speed);
+    r_speed(0);
+    r_dir(WHEEL_FORWARD);
 }
 
 void pivot_dir(unsigned char speed, unsigned char direction){
@@ -262,7 +301,10 @@ unsigned char translate_speed(unsigned char speed){
         Serial.println(speed);
         return 127;
     }
-    return speeds[speed];
+    if (speed < BATTERY_ADJUST) {
+        return speeds[0];
+    }
+    return speeds[speed - BATTERY_ADJUST];
 }
 
 void r_speed(unsigned char speed){

@@ -3,7 +3,7 @@
 #ifndef _Dumping_h
 #define _Dumping_h
 
-#define DUMPING_DELAY       1000 // a bit more than half a second
+#define DUMPING_DELAY       3000 // a bit more than half a second
 
 // Its a servo. it uses the servo library. Needs only 1 pwm pin. cool!
 

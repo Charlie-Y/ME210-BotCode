@@ -13,6 +13,9 @@ void button_pressing_init( unsigned char);
 void extend_button_presser();
 void retract_button_presser();
 
+
+unsigned char pressed_enough_times_for_coins(int);
 unsigned char button_presser_finished();
+
 
 #endif

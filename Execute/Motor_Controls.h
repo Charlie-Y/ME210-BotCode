@@ -26,7 +26,13 @@ void move_backwards(unsigned char);
 void motor_state_changed();
 
 void pulse_forward();
+void pulse_fine_forward();
+void pulse_backward();
+void pulse_fine_backward();
 void pulse_rotate_right();
+void pulse_rotate_left();
+void pulse_fine_rotate_right();
+void pulse_fine_rotate_left();
 void pulse_arc_back(unsigned char direction);
 void check_pulse(); // THIS MUST BE CALLED if you are using any pulse functions
 

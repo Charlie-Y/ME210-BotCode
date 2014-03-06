@@ -17,13 +17,14 @@ static unsigned char button_presser_pin; // pwm
 static Servo servo;
 static int position = SERVO_MIN;
 static unsigned char current_servo_direction;
-
+static int times_pressed;
 
 void button_pressing_init( unsigned char button_presser){
     button_presser_pin = button_presser;
     servo.attach(button_presser_pin);
     servo.write(SERVO_MIN);
     current_servo_direction = SERVO_EXTENDING;
+    times_pressed = 0;
 };
 
 // extends the servo a bit
@@ -34,7 +35,7 @@ void extend_button_presser(){
     Serial.println(position);
 
     servo.write(position);
-
+    times_pressed++;
 
     current_servo_direction = SERVO_EXTENDING;
 }
@@ -61,6 +62,23 @@ unsigned char button_presser_finished(){
         return (position >= SERVO_MIN);
     }
     return true; 
+}
+
+int times_button_pressed(){
+    return times_pressed;
+}
+
+int times_for_num_coins(int num_coins){
+    int total = 0;
+    for (int i = 0; i < num_coins; ++i)
+    {
+        total += i + 1;
+    }
+    return total;
+}
+
+unsigned char pressed_enough_times_for_coins(int num_coins){
+    return times_for_num_coins(num_coins) <= times_pressed;
 }
 
 // I'll need to work out the basics. 

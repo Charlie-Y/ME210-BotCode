@@ -66,8 +66,10 @@
 
 #define MAIN_TIMER              0// We'll use this for most of the states
 #define SERVO_TIMER             1 // dunno...
-#define STATE_INIT_TIMER             2 // this is important
+#define STATE_INIT_TIMER        2 // this is important
 #define PULSE_TIMER             3 // actually defined in motor_controls.cpp
+#define SECONDARY_TIMER         4 // global
+
 
 #define RIGHT_SIDE              0 // oriented facing the arena from the start zones
 #define LEFT_SIDE               1
@@ -109,6 +111,7 @@ typedef enum{
     // Getting to the server
     FIRST_ROTATE_TO_FIND_SERVER,
     FIRST_MOVE_TOWARDS_SERVER,
+    BACKUP_SLOWLY_TO_TAPE_CENTER,
     ARC_BACK_OFF_WALL,
     POST_ARC_SERVER_SEARCH,
     MOVE_TOWARDS_SERVER,
@@ -118,23 +121,22 @@ typedef enum{
     FINAL_ALIGN_TO_SERVER,
     MOVING_FW_TO_ALIGN_WITH_SERVER,
     BUMPED_ALIGNING_WITH_SERVER,
+    SEARCH_LEFT_FOR_SERVER,
+    SEARCH_RIGHT_FOR_SERVER,
+
 
     EXTENDING_BUTTON_PRESSER,
     RETRACTING_BUTTON_PRESSER,
 
-    PAUSE,
-    ROTATE_RIGHT_OFF_WALL,
-    ROTATE_LEFT_OFF_WALL,
-    ROTATE_ON_SERVER_SENSOR,
-    GET_COINS,
-    ACCOUNT_FOR_COINS,
-    SETUP_TO_CHOOSE_DEPOSITORY,
-    CHOOSE_DEPOSITORY,
-    MOVE_TO_DEPOSITORY,
-    CHANGE_DEPOSITORY_IN_MOTION,
-    SETUP_TO_DUMP,
-    DUMP,
-    RETRACT_DUMPER,
+    FINDING_DEPO_TO_SKIP,
+    MOVING_TO_DEPO,
+    CORRECTING_DEPO_ALIGNMENT,
+
+    SEARCH_RIGHT_A_BIT, 
+    SEARCH_LEFT_A_BIT,
+    FINAL_MOVE_TO_DEPO,
+    GETTING_CLOSER_TO_DEPO, 
+
     
     // last typedef enum value is guaranteed to be > then the 
     // # of states there are. kudos to the guy who thought of this
@@ -147,9 +149,11 @@ void (*state_functions[NUM_STATES])();
 // the state the machine is in
 static unsigned char state_changed;
 static unsigned char entered_state;
-static unsigned char arena_side; // which side of the board we are on
+static unsigned char arena_side = LEFT_SIDE; // which side of the board we are on
 static unsigned char state_init_finished; // a debounce statement
 static unsigned char current_state = STARTUP;
+
+static int desperation = 0;
 
 static unsigned char direction_of_interest;
 
@@ -420,6 +424,15 @@ unsigned char respond_to_dumper_finished(unsigned char new_state){
     }
 }
 
+unsigned char respond_to_enough_presses(int num_coins, unsigned char new_state){
+    if (pressed_enough_times_for_coins(num_coins)){
+        change_state_to(new_state);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 unsigned char respond_to_timer(unsigned char timer_id, unsigned char new_state){
     if (TMRArd_IsTimerExpired(timer_id)){
         change_state_to(new_state);
@@ -428,6 +441,7 @@ unsigned char respond_to_timer(unsigned char timer_id, unsigned char new_state){
         return false;
     }
 }
+
 
 
 // -------------- Specific state functions ---------- //
@@ -518,30 +532,6 @@ void tape_both_sensed_fn(){
 
 
 
-void lifting_hopper_fn(){
-    if (entered_state){
-        Serial.println("lifting_hopper_fn");
-        debug_blue->led_on();
-        start_timer(SERVO_TIMER, DUMPING_DELAY);
-        extend_dumper();
-    }
-    if (respond_to_key(NULL_STATE)) return;
-    if (respond_to_timer_and_dumper_finished(SERVO_TIMER, LOWERING_HOPPER)) return;
-    // if (respond_to_dumper_finished(LOWERING_HOPPER)) return; 
-    // if (respond_to_timer(SERVO_TIMER, LIFTING_HOPPER)) return; 
-}
-
-void lowering_hopper_fn(){
-if (entered_state){
-        Serial.println("lowering_hopper_fn");
-        debug_green->led_on();
-        start_timer(SERVO_TIMER, DUMPING_DELAY);
-        retract_dumper();
-    }
-    if (respond_to_key(NULL_STATE)) return;
-    // if (respond_to_dumper_finished(NULL_STATE)) return; 
-    if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return; 
-}
 
 void moving_forward_fn(){
     if (entered_state){
@@ -699,6 +689,8 @@ void first_move_towards_server_fn(){
         direction_of_interest = DIR_RIGHT; // you want to arc back and right
         return;
     }
+    if (respond_to_tape_on(tape_c, BACKUP_SLOWLY_TO_TAPE_CENTER)) return;
+
     // if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
     //     return;
     // }
@@ -740,9 +732,9 @@ void correcting_rotation_1_fn(){
         debug_green->led_on();
     }
     if (state_init_timer_finished()){
-        rotate_left(10);
+        rotate_left(8);
         state_init_finished = true;
-        start_timer(MAIN_TIMER, 100);
+        start_timer(MAIN_TIMER, 60);
         debug_green->led_off();
         debug_red->led_off();
     }
@@ -758,13 +750,14 @@ void correcting_rotation_2_fn(){
         debug_green->led_on();
     }
     if (state_init_timer_finished()){
-        rotate_left(10);
+        rotate_left(8);
         state_init_finished = true;
-        start_timer(MAIN_TIMER, 100);
+        start_timer(MAIN_TIMER, 60);
         debug_green->led_off();
         debug_red->led_off();
     }
     if (state_init_finished){
+        // if (respond_to_timer(MAIN_TIMER, MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
         if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
     }
 }
@@ -778,7 +771,19 @@ void arc_back_off_wall_fn(){
     check_pulse();
     if (respond_to_timer(MAIN_TIMER, POST_ARC_SERVER_SEARCH)) return;
     if (respond_to_tape_on(tape_c, CENTERED_ON_SERVER_TAPE)) return;
+    // if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return;
+
 }
+
+void backup_slowly_to_tape_center_fn(){
+    if (entered_state){
+        pulse_fine_backward();
+        debug_red->led_on();
+    }
+    check_pulse();
+    if (respond_to_tape_on(tape_c, CENTERED_ON_SERVER_TAPE)) return;
+}   
+
 
 void centered_on_server_tape_fn(){
     if (entered_state){
@@ -788,6 +793,7 @@ void centered_on_server_tape_fn(){
         start_timer(MAIN_TIMER, 1000);
     }
     if (respond_to_timer(MAIN_TIMER, FINAL_ALIGN_TO_SERVER)) return;
+    if (respond_to_any_bumper_bumped(EXTENDING_BUTTON_PRESSER)) return;
 
 }
 
@@ -807,24 +813,70 @@ void final_align_to_server_fn(){
     if (respond_to_server_found(MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
 }
 
-void moving_fw_to_align_with_server_fn(){
-    if(entered_state){
-        move_forwards(10);
-        // move_forwards(10);
-        // pulse_forward();
-        debug_red->led_on();
+void search_right_for_server_fn(){
+    if (respond_to_server_found(MOVING_FW_TO_ALIGN_WITH_SERVER)){
+        direction_of_interest = DIR_RIGHT;
+        return;
     }
-    // check_pulse();
-    if (respond_to_any_bumper_bumped(EXTENDING_BUTTON_PRESSER)) return;
-    // if (respond_to_bumper_bumped(bumper_l, BUMPED_ALIGNING_WITH_SERVER)){
-    //     direction_of_interest = DIR_LEFT;//want to pivot right
-    //     return;
-    // }
-    // if (respond_to_bumper_bumped(bumper_r, BUMPED_ALIGNING_WITH_SERVER)){
-    //     direction_of_interest = DIR_RIGHT;
-    //     return;
-    // }
+    if (entered_state){
+        pulse_fine_rotate_right();
+        start_timer(MAIN_TIMER, 1500 + (desperation * 550));
+        debug_blue->led_on();
+        desperation++;
+    }
+    check_pulse();
+    if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_FOR_SERVER)) return;
 }
+
+void search_left_for_server_fn(){
+    if (respond_to_server_found(MOVING_FW_TO_ALIGN_WITH_SERVER)){
+        direction_of_interest = DIR_LEFT;
+        return;
+    }
+    if (entered_state){
+        pulse_fine_rotate_left();
+        start_timer(MAIN_TIMER, 1500 + (desperation * 550));
+        debug_blue->led_on();
+        debug_red->led_on();
+        desperation++;
+    }
+    check_pulse();
+    if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_FOR_SERVER)) return;
+}   
+
+void moving_fw_to_align_with_server_fn(){
+    if (entered_state){
+        desperation = 0;
+        pulse_fine_forward();
+        debug_red->led_on();
+        start_timer(MAIN_TIMER, 1000);
+    }
+    check_pulse();
+    if (direction_of_interest == DIR_LEFT){
+        if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_FOR_SERVER)) {
+            direction_of_interest == DIR_RIGHT;
+            return;
+        }
+    } 
+    if (direction_of_interest == DIR_RIGHT){
+        if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_FOR_SERVER)) {
+            direction_of_interest == DIR_LEFT;
+            return;
+        }
+    } 
+    if (respond_to_bumper_bumped(bumper_r, BUMPED_ALIGNING_WITH_SERVER)){
+        direction_of_interest = DIR_LEFT;
+        
+        return;
+    }
+    if (respond_to_bumper_bumped(bumper_l, BUMPED_ALIGNING_WITH_SERVER)){
+        direction_of_interest = DIR_RIGHT;
+        return;
+    }
+    // if (respond_to_any_bumper_bumped(EXTENDING_BUTTON_PRESSER)) return;
+}
+
+
 
 //one bumper is down, now pivot until the other is down
 void bumped_aligning_with_server_fn(){
@@ -836,7 +888,11 @@ void bumped_aligning_with_server_fn(){
             debug_green->led_on();
             pivot_right(10);
         }
+        start_timer(MAIN_TIMER, 3000);
+        // move_forwards(10);
     }
+    if (respond_to_timer(MAIN_TIMER, MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
+    // if (respond_to_timer(MAIN_TIMER, EXTENDING_BUTTON_PRESSER)) return;
     if (respond_to_both_bumpers_bumped(bumper_l, bumper_r, EXTENDING_BUTTON_PRESSER)) return;
 }
 
@@ -847,8 +903,10 @@ void extending_button_presser_fn(){
         debug_green->led_on();
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
 
+        pulse_forward();
         // set servo timer
     }
+    check_pulse();
 
     // reenter the state and reincrement the servo
     if (respond_to_key(EXTENDING_BUTTON_PRESSER)) return;
@@ -866,6 +924,7 @@ void retracting_button_presser_fn(){
         retract_button_presser();
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
     }
+    if (respond_to_enough_presses(3,FINDING_DEPO_TO_SKIP)) return;
     if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
     if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
     // if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return;
@@ -873,216 +932,177 @@ void retracting_button_presser_fn(){
     // if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
 }
 
-///
-
-void pause_fn(){ // not using this one
-    // things that we do when entering state
-    if (entered_state){
-        stop_moving();
-        start_state_init_timer(1000);
-        debug_green->led_on();
-    }
-    if (state_init_timer_finished()){
-        rotate_left(5);
-        debug_blue->led_on();
-        debug_green->led_off();
-        state_init_finished = true;
-    }
-    if (state_init_finished){
-        if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return ;
-    }
-}
-
-void rotate_left_off_wall_fn(){
-    if (entered_state){
-        stop_moving();
-        debug_green->led_on();
-        start_timer(MAIN_TIMER, 200);
-        rotate_left(5);
-    }
-    
-    if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
-}
-
-void rotate_right_off_wall_fn(){
-    if (entered_state){
-        stop_moving();
-        debug_green->led_on();
-        start_timer(MAIN_TIMER, 200);
-        rotate_right(5);
-    }
-    
-    if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
-}
-
-void rotate_on_server_sensor_fn(){
+void finding_depo_to_skip_fn(){
     if (entered_state){
         debug_red->led_on();
-        stop_moving();
-        // if (arena_side == LEFT_SIDE) rotate_left(5);
-        // if (arena_side == RIGHT_SIDE) rotate_right(5);
-        // probably back up here?
+        move_backwards(10);
+        start_state_init_timer(700); // back up a bit first
     }
-    if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
+    if (state_init_timer_finished()){
+        if (arena_side == RIGHT_SIDE){
+            pulse_fine_rotate_right();
+        } else if (arena_side == LEFT_SIDE){
+            pulse_fine_rotate_left();
+        } else {
+            pulse_fine_rotate_right();
+        }
+    }
+    if (state_init_finished){
+        check_pulse();
+        // if (respond_to_tape_on(tape_f, FINAL_MOVE_TO_DEPO)) return;
+        // if (respond_to_tape_on(tape_f, MOVING_TO_DEPO)) return;
+        if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
+            start_timer(SECONDARY_TIMER, 10000);
+            return;
+        }
+        // if (respond_to_depository_found(MOVING_TO_DEPO)) return;
+        // if (respond_to_depository_found(SKIPPING_DEPO)) return;
+    }
 }
-                
-void get_coins_fn(){ // TO BE CHANGED
+
+// // make it skip a depo here?
+// void skipping_depo_fn(){
+//     if (entered_state){
+//         pulse_rotate_right();
+//     }
+//     check_pulse();
+//     if (respond_to_no_beacon(FINDING_FINAL_BEACON)) return;
+// }
+
+// void finding_final_depo_fn(){
+//     if (entered_state){
+//         pulse_rotate_right();
+//     }
+//     check_pulse();
+//     if (respond_to_depository_found(MOVING_TO_DEPO)) return;
+// }
+
+void moving_to_depo_fn(){
+    if(entered_state){
+        pulse_forward();
+        debug_red->led_on();
+        debug_blue->led_on();
+    }
+    check_pulse();
+    // if (respond_to_any_bumper_bumped(CORRECTING_DEPO_ALIGNMENT)) return;
+    // if (respond_to_tape_on(tape_f, CORRECTING_DEPO_ALIGNMENT)) return;
+}
+
+void correcting_depo_alignment_fn(){ // might not be necessary
     if (entered_state){
-        stop_moving();
-        if (current_coin_count == 0) {
-            current_server = exchanges[coin_collection_round];
-            next_server =exchanges[coin_collection_round+1];
-        }
-        start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
-        extend_button_presser();
+        debug_red->led_on();
+        debug_green->led_on();
+        debug_blue->led_on();
+        pulse_backward();
+        start_timer(MAIN_TIMER, 400);
     }
-    
-    if (respond_to_timer(MAIN_TIMER, ACCOUNT_FOR_COINS)){
-        times_button_pressed_required -= 1;
-        if (times_button_pressed_required == 0) {
-            current_coin_count += 1;
-            coins_on_hopper +=1;
-            total_coins += 1;
-        }
-        return;
-    }
-    
+    check_pulse();
+    if(respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) return;
+
 }
 
-void account_for_coins_fn(){ // TO BE CHANGED
+void search_right_a_bit_fn(){
     if (entered_state){
-        start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
-        retract_button_presser();
-        if (times_button_pressed_required == 0) times_button_pressed_required = total_coins + 1;
+        pulse_fine_rotate_right();
+        start_timer(MAIN_TIMER, 500 + (desperation * 600));
+        debug_blue->led_on();
+        desperation++;
     }
-    
-    if (current_coin_count == current_server) {
-        current_coin_count = 0;
-        coin_collection_round += 1;
-        current_state = SETUP_TO_CHOOSE_DEPOSITORY;
+    check_pulse();
+    if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_A_BIT)) return;
+    if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
+        direction_of_interest = DIR_RIGHT;
         return;
-        
     }
-    if (respond_to_timer(MAIN_TIMER, GET_COINS)) return;
 }
 
-void setup_to_choose_depository_fn(){
-    if (entered_state) {
-        stop_moving();
-        start_timer(MAIN_TIMER, 1000);
-        move_backwards(5);
+void search_left_a_bit_fn(){
+    if (entered_state){
+        pulse_fine_rotate_left();
+        start_timer(MAIN_TIMER, 500 + (desperation * 300));
+        debug_green->led_on();
+        desperation++;
     }
-    
-    if (respond_to_timer(MAIN_TIMER,CHOOSE_DEPOSITORY)) return;
+    check_pulse();
+    if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) return;
+    if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)){
+        direction_of_interest = DIR_LEFT;
+        return;
+    }
 }
 
-                
-void choose_depository_fn(){
-    if (entered_state) {
-        stop_moving();
-        switch (current_server){
-            case 3:
-                if (arena_side == LEFT_SIDE) rotate_right(5);
-                if (arena_side == RIGHT_SIDE) rotate_left(5);
-                break;
-            case 5:
-                if (arena_side == RIGHT_SIDE) rotate_right(5);
-                if (arena_side == LEFT_SIDE) rotate_left(5);
-                break;
-            case 8:
-                rotate_left(5);
-                break;
+void final_move_to_depo_fn(){
+    if (entered_state){
+        desperation = 0;
+        // pulse_forward();
+        move_forwards(9);
+        debug_red->led_on();
+        start_timer(MAIN_TIMER, 300);
+    }
+    // check_pulse();
+    if (respond_to_timer(SECONDARY_TIMER, GETTING_CLOSER_TO_DEPO)){
+        // set in finding_depo_to_skip
+        return;
+    }
+    if (!depository_found()){
+        if (direction_of_interest == DIR_LEFT){
+            if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) {
+                direction_of_interest == DIR_RIGHT;
+                return;
+            }
+        } 
+        if (direction_of_interest == DIR_RIGHT){
+            if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_A_BIT)) {
+                direction_of_interest == DIR_LEFT;
+                return;
+            }
         }
-    }
-    
-    switch (current_server){
-        case 3:
-            if (respond_to_depository_found(MOVE_TO_DEPOSITORY)) return;
-            break;
-        case 5:
-            if (respond_to_depository_found(MOVE_TO_DEPOSITORY)) return;
-            break;
-        case 8:
-            if (respond_to_both_tape_on(tape_f, tape_c, MOVE_TO_DEPOSITORY)) return;
-            break;
-    }
-}
-                
-void move_to_depository_fn(){
-    if (entered_state) {
-        stop_moving();
-        move_forwards(5);
-        start_timer (MAIN_TIMER, 5000);
-    }
-    
-    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return;
-    if (respond_to_bumper_bumped(bumper_r,SETUP_TO_DUMP) || respond_to_bumper_bumped(bumper_l,SETUP_TO_DUMP)) return;
+    } 
+    // if (respond_to_tape_on(tape_f, GETTING_CLOSER_TO_DEPO))return;
+    if (respond_to_any_bumper_bumped(GETTING_CLOSER_TO_DEPO)) return;
+    // if (respond_to_any_bumper_bumped(LIFTING_HOPPER)) return;
 }
 
-void change_depository_in_motion_fn(){ 
-    if (entered_state) {
-        stop_moving;
+void getting_closer_to_depo_fn(){
+    if (entered_state){
+        move_forwards(10);
+        start_timer(MAIN_TIMER, 400);
+        debug_green->led_on();
     }
-    
-    if (coins_on_hopper < next_server) {
-        current_state = FIRST_ROTATE_TO_FIND_SERVER;
-        return;
-    }
-    
-    if (coins_on_hopper > next_server) { //CAN ONLY DO ONCE FINALIZED STRATEGY
-        
-        return;
-    }
-  
+     if (respond_to_timer(MAIN_TIMER, LIFTING_HOPPER)) return;
 }
 
-void setup_to_dump_fn(){
-    if (entered_state) {
-        stop_moving();
-        switch (current_server){
-            case 3:
-                if (arena_side == LEFT_SIDE) rotate_left(5);
-                if (arena_side == RIGHT_SIDE) rotate_right(5);
-                break;
-            case 5:
-                if (arena_side == RIGHT_SIDE) rotate_left(5);
-                if (arena_side == LEFT_SIDE) rotate_right(5);
-                break;
-            case 8:
-                break;
-        }
-    }
-    
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; //IS THIS NECESSARY
-    
-    if (respond_to_both_bumpers_bumped(bumper_r, bumper_l,DUMP)) return;
-}
-    
-void dump_fn(){
-    if (entered_state) {
-        stop_moving();
-        start_timer(MAIN_TIMER, DUMPING_DELAY);
+void lifting_hopper_fn(){
+    if (entered_state){
+        pulse_forward();
+        Serial.println("lifting_hopper_fn");
+        debug_blue->led_on();
+        start_timer(SERVO_TIMER, 1500);
         extend_dumper();
-        coins_on_hopper -= current_server;
     }
-    
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; // IS THIS NECESARY?
-    
-    if(respond_to_timer(MAIN_TIMER, RETRACT_DUMPER)) return;
+    check_pulse();
+    // if (respond_to_key(NULL_STATE)) return; 
+    // if (respond_to_timer_and_dumper_finished(SERVO_TIMER, LOWERING_HOPPER)) return;
+    // if (respond_to_dumper_finished(LOWERING_HOPPER)) return; 
+    if (respond_to_timer(SERVO_TIMER, LOWERING_HOPPER)) return; 
+    // if (respond_to_timer(SERVO_TIMER, LIFTING_HOPPER)) return; 
 }
 
-void retract_dumper_fn(){
-    if (entered_state) {
-        stop_moving();
-        start_timer(MAIN_TIMER, DUMPING_DELAY);
+void lowering_hopper_fn(){
+if (entered_state){
+        Serial.println("lowering_hopper_fn");
+        debug_green->led_on();
+        start_timer(SERVO_TIMER, 1000);
         retract_dumper();
-        move_backwards(5);
     }
-    if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; // IS THIS NECESARY?
-        
-    if (respond_to_timer(MAIN_TIMER, FIRST_ROTATE_TO_FIND_SERVER))return;
+    if (respond_to_key(NULL_STATE)) return;
+    // if (respond_to_dumper_finished(NULL_STATE)) return; 
+    if (respond_to_timer(SERVO_TIMER, LIFTING_HOPPER)) return; 
 }
+
+
+///
+
 
 // -- Various debugging states -- //
 // send things here to end the loop
@@ -1093,7 +1113,7 @@ void null_state_fn(){
         debug_red->led_on();
         debug_green->led_on();
         debug_blue->led_on();
-        // move_forwards(8);
+        move_forwards(8);
     }
     // Serial.println(digitalRead(BUMPER_R_PIN));
     // change_state_to(MOVING_FORWARD);
@@ -1103,6 +1123,9 @@ void null_state_fn(){
     // change_state_to(EXTENDING_BUTTON_PRESSER);
     // change_state_to(LIFTING_HOPPER);
     change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
+    // change_state_to(MOVING_FW_TO_ALIGN_WITH_SERVER);
+    // change_state_to(SEARCH_RIGHT_A_BIT);
+    // change_state_to(FINDING_DEPO_TO_SKIP);
     // change_state_to(CENTERED_ON_SERVER_TAPE);
     // change_state_to(FINAL_ALIGN_TO_SERVER);
     // if (respond_to_key(LIFTING_HOPPER)) return;
@@ -1195,6 +1218,7 @@ void setup_states() {
     // --- Actual states --- //
     state_functions[FIRST_ROTATE_TO_FIND_SERVER] = first_rotate_to_find_server_fn;
     state_functions[FIRST_MOVE_TOWARDS_SERVER] = first_move_towards_server_fn;
+    state_functions[BACKUP_SLOWLY_TO_TAPE_CENTER] = backup_slowly_to_tape_center_fn;
     state_functions[ARC_BACK_OFF_WALL] = arc_back_off_wall_fn;
     state_functions[POST_ARC_SERVER_SEARCH] = post_arc_server_search_fn;
     state_functions[MOVE_TOWARDS_SERVER] = move_towards_server_fn;
@@ -1202,23 +1226,19 @@ void setup_states() {
     state_functions[CORRECTING_ROTATION_1] = correcting_rotation_1_fn;
     state_functions[CORRECTING_ROTATION_2] = correcting_rotation_2_fn;
     state_functions[FINAL_ALIGN_TO_SERVER] = final_align_to_server_fn;
+    state_functions[SEARCH_LEFT_FOR_SERVER] = search_left_for_server_fn;
+    state_functions[SEARCH_RIGHT_FOR_SERVER] = search_right_for_server_fn;
     state_functions[MOVING_FW_TO_ALIGN_WITH_SERVER] = moving_fw_to_align_with_server_fn;
     state_functions[BUMPED_ALIGNING_WITH_SERVER] = bumped_aligning_with_server_fn;
-    
+    state_functions[FINDING_DEPO_TO_SKIP] = finding_depo_to_skip_fn;
+    state_functions[MOVING_TO_DEPO] = moving_to_depo_fn;
+    state_functions[CORRECTING_DEPO_ALIGNMENT] = correcting_depo_alignment_fn;
+    state_functions[SEARCH_LEFT_A_BIT] = search_left_a_bit_fn;
+    state_functions[SEARCH_RIGHT_A_BIT] = search_right_a_bit_fn;
+    state_functions[FINAL_MOVE_TO_DEPO] = final_move_to_depo_fn;
+    state_functions[GETTING_CLOSER_TO_DEPO] = getting_closer_to_depo_fn;
 
-    state_functions[PAUSE] = pause_fn;
-    state_functions[ROTATE_RIGHT_OFF_WALL] = rotate_right_off_wall_fn;
-    state_functions[ROTATE_LEFT_OFF_WALL] = rotate_left_off_wall_fn;
-    state_functions[ROTATE_ON_SERVER_SENSOR] = rotate_on_server_sensor_fn;
-    state_functions[GET_COINS] = get_coins_fn;
-    state_functions[ACCOUNT_FOR_COINS] = account_for_coins_fn;
-    state_functions[SETUP_TO_CHOOSE_DEPOSITORY] = setup_to_choose_depository_fn;
-    state_functions[CHOOSE_DEPOSITORY] = choose_depository_fn;
-    state_functions[MOVE_TO_DEPOSITORY] = move_to_depository_fn;
-    state_functions[CHANGE_DEPOSITORY_IN_MOTION] = change_depository_in_motion_fn;
-    state_functions[SETUP_TO_DUMP] = setup_to_dump_fn;
-    state_functions[DUMP] = dump_fn;
-    state_functions[RETRACT_DUMPER] = retract_dumper_fn;
+
 
 
 }
