@@ -709,15 +709,11 @@ void rotate_on_server_sensor_fn(){
         debug_blue->led_on();
         debug_green->led_on();
         stop_moving();
-        if (arena_side == LEFT_SIDE) {
-            rotate_left(5);
-            if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
-        }
-        if (arena_side == RIGHT_SIDE) {
-            rotate_right(5);
-            if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
-        }
+        if (arena_side == LEFT_SIDE) rotate_left(5);
+        if (arena_side == RIGHT_SIDE) rotate_right(5);
     }
+    
+    if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
 }
                 
 void get_coins_fn(){ // TO BE CHANGED
