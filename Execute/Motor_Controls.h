@@ -4,6 +4,8 @@
 #define WHEEL_FORWARD             0
 #define WHEEL_BACKWARD            1
 
+#define MOTOR_PULSE_LENGTH      200
+
 #define DIR_LEFT            0
 #define DIR_CLOCKWISE       0
 
@@ -19,6 +21,11 @@ void motor_control_init(unsigned char, unsigned char, unsigned char, unsigned ch
 // Speeds
 void move_forwards(unsigned char);
 void move_backwards(unsigned char);
+
+// Pulse controls
+void motor_state_changed();
+void pulse_forward();
+void check_pulse();
 
 void stop_moving();
 

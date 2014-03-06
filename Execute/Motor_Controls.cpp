@@ -1,8 +1,10 @@
 #include "Arduino.h"
 #include "Motor_Controls.h"
+#include "Timers.h"
 
 #define SPEED_VALUES        11
-
+#define PULSE_TIMER_ID      3
+#define PULSE_TIMER_DELAY   200
 
 static const int speeds [SPEED_VALUES] = {0, 26, 51, 77, 102, 127, 153, 179, 204, 229, 255 };
 
@@ -13,6 +15,8 @@ static unsigned char wheel_r_enable_pin;
 static unsigned char wheel_l_dir_pin;
 static unsigned char wheel_l_enable_pin;
 
+static unsigned char is_pulsing;
+void (*pulse_fn)();// pointer to last pulse function
 
 /* -------- Prototypes -------- */
 unsigned char translate_speed(unsigned char);
@@ -20,6 +24,9 @@ void r_speed(unsigned char);
 void l_speed(unsigned char);
 void r_dir(unsigned char);
 void l_dir(unsigned char);
+void start_pulse_timer();
+void no_pulse(); // a palceholder function that doesn't do anything;
+unsigned char pulse_timer_finished();
 
 /* -------- Public functions ----- */
 
@@ -34,6 +41,8 @@ void motor_control_init(unsigned char wheel_r_dir, unsigned char wheel_r_enable,
 
     wheel_l_dir_pin = wheel_l_dir;
     wheel_l_enable_pin = wheel_l_enable;
+
+    is_pulsing = false;
 
     pinMode(wheel_r_dir_pin, OUTPUT);
     pinMode(wheel_r_enable_pin, OUTPUT);
@@ -50,6 +59,70 @@ void move_forwards(unsigned char speed){
     l_dir(WHEEL_FORWARD);
 }
 
+void motor_state_changed(){
+    // reset the pulse timer?
+    is_pulsing = false;
+    pulse_fn = no_pulse;
+}
+
+void no_pulse(){
+
+}
+
+// i could write a wrapper pulse fn. but no. 
+
+void pulse_forward(){ // be able to pass in the interval?
+    // Serial.println("pulse_forward");
+    move_forwards(10);
+    start_pulse_timer();
+    pulse_fn = pulse_forward;
+    is_pulsing = true;
+}
+
+void pulse_backwards(){
+    move_backwards(10);
+    start_pulse_timer();
+    pulse_fn = pulse_forward;
+    is_pulsing = true;
+}
+
+void pulse_rotate_right(){
+    // Serial.println("pulse_rotate_right");
+    rotate_right(10);
+    start_pulse_timer();
+    pulse_fn = pulse_rotate_right;
+    is_pulsing = true;
+}
+
+
+
+void check_pulse(){
+    if (is_pulsing){
+        Serial.println("Pulsing");
+    } else {
+        Serial.println("not pulsing");
+    }
+    if (is_pulsing && pulse_timer_finished()){
+        stop_moving();
+        is_pulsing = false;
+        start_pulse_timer(); // delay timer
+    }
+    if (!is_pulsing && pulse_timer_finished()){
+        is_pulsing = true;
+        pulse_fn();
+    }
+}
+
+void start_pulse_timer(){
+    // starts the pulse timer
+    TMRArd_InitTimer(PULSE_TIMER_ID, PULSE_TIMER_DELAY);
+}
+
+unsigned char pulse_timer_finished(){
+    return TMRArd_IsTimerExpired(PULSE_TIMER_ID);
+}
+
+
 void move_backwards(unsigned char speed){
     r_speed(speed);
     r_dir(WHEEL_BACKWARD);
@@ -65,17 +138,17 @@ void stop_moving(){
 
 // Rotating in place
 void rotate_right(unsigned char speed){
-    r_speed(speed);
-    r_dir(WHEEL_FORWARD);
     l_speed(speed);
-    l_dir(WHEEL_BACKWARD);
+    l_dir(WHEEL_FORWARD);
+    r_speed(speed);
+    r_dir(WHEEL_BACKWARD);
 }
 
 void rotate_left(unsigned char speed){
-    r_speed(speed);
-    r_dir(WHEEL_BACKWARD);
     l_speed(speed);
-    l_dir(WHEEL_FORWARD);
+    l_dir(WHEEL_BACKWARD);
+    r_speed(speed);
+    r_dir(WHEEL_FORWARD);
 }
 
 void rotate_dir(unsigned char speed, unsigned char direction){

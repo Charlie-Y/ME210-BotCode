@@ -66,6 +66,8 @@
 
 #define MAIN_TIMER              0// We'll use this for most of the states
 #define SERVO_TIMER             1 // dunno...
+#define STATE_INIT_TIMER             2 // this is important
+#define PULSE_TIMER             3 // actually defined in motor_controls.cpp
 
 #define RIGHT_SIDE              0 // oriented facing the arena from the start zones
 #define LEFT_SIDE               1
@@ -93,6 +95,8 @@ typedef enum{
     MOVING_BACKWARD,
     ROTATING_RIGHT,
     ROTATING_LEFT,
+    PULSE_FORWARD,
+    PULSE_ROTATE_RIGHT,
     // bumper test states
     BUMPED_B,
     BUMPED_R,
@@ -103,6 +107,7 @@ typedef enum{
     // --- Actual states --- //
 
     FIRST_ROTATE_TO_FIND_SERVER,
+    PAUSE,
     MOVE_TOWARDS_SERVER,
     ROTATE_RIGHT_OFF_WALL,
     ROTATE_LEFT_OFF_WALL,
@@ -129,13 +134,17 @@ void (*state_functions[NUM_STATES])();
 unsigned char state_changed;
 unsigned char entered_state;
 unsigned char arena_side; // which side of the board we are on
+unsigned char state_init_finished; // a debounce statement
 static unsigned char current_state = STARTUP;
 
-unsigned char exchanges[] = {3, 5, 8};
+unsigned char exchanges[] = {8, 5, 3, 0};
 unsigned char coin_collection_round;
 unsigned char current_server;
+unsigned char next_server;
+unsigned char coins_on_hopper = 0;
 unsigned char current_coin_count = 0;
-unsigned char times_button_pressed_required;
+unsigned char times_button_pressed_required = 1;
+unsigned char total_coins = 0;
 
 
 // Objects 
@@ -154,6 +163,8 @@ static Bump_Sensor *bumper_l;
 
 void debug_all_off(void);
 void start_timer(unsigned char, int);
+void start_state_init_timer(int);
+unsigned char state_init_timer_finished();
 
 
 
@@ -174,10 +185,12 @@ void change_state_to(unsigned char new_state){
     debug_all_off();
     stop_moving();
     beacon_sensing_state_changed();
+    motor_state_changed(); // resets the pulse clock?
 
     current_state = new_state;
     entered_state = true;
     state_changed = true;
+    state_init_finished = false;
 
     Serial.println(" "); // take this off later
 
@@ -626,53 +639,115 @@ void bumped_b_fn(){
     if (respond_to_bumper_not_bumped(bumper_l, BUMPED_R)) return;
 }
 
+// void pulse_forward_fn(){
+//     if (entered_state){
+//         move_forwards(10);
+//         start_state_init_timer(MOTOR_PULSE_LENGTH);
+//         debug_blue->led_on();
+//         // Serial.println("Pulsing fw");
+//     }
+//     if (state_init_timer_finished()){
+//         stop_moving();
+//         debug_blue->led_off();
+//         start_timer(MAIN_TIMER, MOTOR_PULSE_LENGTH);
+//         // Serial.println("Pulsing stopped");
+//     }
+//     if (state_init_finished){
+//         if(respond_to_timer(MAIN_TIMER, PULSE_FORWARD)) return;
+//     }
+//     if (respond_to_key(NULL_STATE)) return ;
+
+// }
+
+void pulse_forward_fn(){
+    if (entered_state){
+        pulse_forward();
+        // Serial.println("Pulsing fw");
+        debug_blue->led_on();
+    }
+    check_pulse();
+}
+
+void pulse_rotate_right_fn(){
+    if (entered_state){
+        rotate_right(10);
+        start_state_init_timer(MOTOR_PULSE_LENGTH);
+        debug_red->led_on();
+    } 
+    if (state_init_timer_finished()){
+        stop_moving();
+        debug_red->led_off();
+        start_timer(MAIN_TIMER, MOTOR_PULSE_LENGTH);
+    }
+    if (state_init_finished){
+        if (respond_to_timer(MAIN_TIMER, PULSE_ROTATE_RIGHT));
+    }
+    if (respond_to_key(NULL_STATE)) return;
+    if (respond_to_server_found(PULSE_FORWARD)) return;
+}
 // Actual states
 
 void first_rotate_to_find_server_fn(){
     if (entered_state){
         Serial.println("first_rotate_to_find_server_fn");
-        rotate_right(10);
+        rotate_right(8);
         debug_blue->led_on();
         start_timer(MAIN_TIMER, 6000);
     }
 
-    if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return ;
+    if (respond_to_server_found(PAUSE)) return ;
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+}
+
+void pause_fn(){
+    // things that we do when entering state
+    if (entered_state){
+        stop_moving();
+        start_state_init_timer(1000);
+        debug_green->led_on();
+    }
+    if (state_init_timer_finished()){
+        rotate_left(5);
+        debug_blue->led_on();
+        debug_green->led_off();
+        state_init_finished = true;
+    }
+    if (state_init_finished){
+        if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return ;
+    }
 }
 
 void move_towards_server_fn(){
     if (entered_state){
         stop_moving();
         Serial.println("move_towards_server_fn");
-
-        move_forwards(10);
+        move_forwards(7);
         debug_red->led_on();
-
         start_timer(MAIN_TIMER, 5000);
     }
     if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
-    // if (respond_to_bumper_bumped(bumper_r, NULL_STATE)) return ;
-    // if (respond_to_bumper_bumped(bumper_l, NULL_STATE)) return ;
-    // if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
-    //     arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
-    //     return;
-    // }
-    // if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
-    //     arena_side = LEFT_SIDE; // now we know what side of the arena we are on
-    //     return;
-    // }
-    // if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
-    //     return;
-    // }
-    // if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, GET_COINS)){
-    //     return;
-    // }
+    if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ROTATE_LEFT_OFF_WALL)) {
+         arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
+         return;
+    }
+    if (respond_to_only_l_bumper_bumped(bumper_l, bumper_r, ROTATE_RIGHT_OFF_WALL)) {
+         arena_side = LEFT_SIDE; // now we know what side of the arena we are on
+         return;
+    }
+    if (respond_to_only_one_tape_on(tape_c, tape_f, ROTATE_ON_SERVER_SENSOR)){
+        return;
+    }
+    if (respond_to_both_bumpers_bumped(bumper_r, bumper_l, NULL_STATE)){
+        return;
+    }
 }
+
 
 void rotate_left_off_wall_fn(){
     if (entered_state){
         stop_moving();
-        start_timer(MAIN_TIMER, 1000);
+        debug_green->led_on();
+        start_timer(MAIN_TIMER, 200);
         rotate_left(5);
     }
     
@@ -682,7 +757,8 @@ void rotate_left_off_wall_fn(){
 void rotate_right_off_wall_fn(){
     if (entered_state){
         stop_moving();
-        start_timer(MAIN_TIMER, 1000);
+        debug_green->led_on();
+        start_timer(MAIN_TIMER, 200);
         rotate_right(5);
     }
     
@@ -691,41 +767,43 @@ void rotate_right_off_wall_fn(){
 
 void rotate_on_server_sensor_fn(){
     if (entered_state){
+        debug_red->led_on();
         stop_moving();
-        if (arena_side == LEFT_SIDE) {
-            rotate_left(5);
-            if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
-        }
-        if (arena_side == RIGHT_SIDE) {
-            rotate_right(5);
-            if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
-        }
+        // if (arena_side == LEFT_SIDE) rotate_left(5);
+        // if (arena_side == RIGHT_SIDE) rotate_right(5);
+        // probably back up here?
     }
+    if (respond_to_tape_on(tape_f,MOVE_TOWARDS_SERVER)) return;
 }
                 
-void get_coins_fn(){
+void get_coins_fn(){ // TO BE CHANGED
     if (entered_state){
         stop_moving();
         if (current_coin_count == 0) {
             current_server = exchanges[coin_collection_round];
-            times_button_pressed_required = current_server;
+            next_server =exchanges[coin_collection_round+1];
         }
         start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
         extend_button_presser();
     }
     
     if (respond_to_timer(MAIN_TIMER, ACCOUNT_FOR_COINS)){
-        current_coin_count += 1;
         times_button_pressed_required -= 1;
+        if (times_button_pressed_required == 0) {
+            current_coin_count += 1;
+            coins_on_hopper +=1;
+            total_coins += 1;
+        }
         return;
     }
     
 }
 
-void account_for_coins_fn(){
+void account_for_coins_fn(){ // TO BE CHANGED
     if (entered_state){
         start_timer(MAIN_TIMER,BUTTON_PRESSER_DELAY);
         retract_button_presser();
+        if (times_button_pressed_required == 0) times_button_pressed_required = total_coins + 1;
     }
     
     if (current_coin_count == current_server) {
@@ -792,10 +870,21 @@ void move_to_depository_fn(){
     if (respond_to_bumper_bumped(bumper_r,SETUP_TO_DUMP) || respond_to_bumper_bumped(bumper_l,SETUP_TO_DUMP)) return;
 }
 
-void change_depository_in_motion_fn(){
-  if (entered_state){
+void change_depository_in_motion_fn(){ 
+    if (entered_state) {
+        stop_moving;
+    }
     
-  }
+    if (coins_on_hopper < next_server) {
+        current_state = FIRST_ROTATE_TO_FIND_SERVER;
+        return;
+    }
+    
+    if (coins_on_hopper > next_server) { //CAN ONLY DO ONCE FINALIZED STRATEGY
+        
+        return;
+    }
+  
 }
 
 void setup_to_dump_fn(){
@@ -825,6 +914,7 @@ void dump_fn(){
         stop_moving();
         start_timer(MAIN_TIMER, DUMPING_DELAY);
         extend_dumper();
+        coins_on_hopper -= current_server;
     }
     
     if (respond_to_no_beacon(CHANGE_DEPOSITORY_IN_MOTION)) return; // IS THIS NECESARY?
@@ -855,8 +945,11 @@ void null_state_fn(){
         debug_blue->led_on();
         move_forwards(8);
     }
+
     // Serial.println(digitalRead(BUMPER_R_PIN));
     // change_state_to(MOVING_FORWARD);
+    // change_state_to(PULSE_ROTATE_RIGHT);
+    change_state_to(PULSE_FORWARD);
     // change_state_to(EXTENDING_BUTTON_PRESSER);
     // change_state_to(LIFTING_HOPPER);
     // change_state_to(FIRST_ROTATE_TO_FIND_SERVER);
@@ -896,6 +989,24 @@ void start_timer(unsigned char timer_id, int duration){
     TMRArd_InitTimer(timer_id, duration);
 }
 
+
+// just for the sake of clarity
+void start_state_init_timer(int duration){
+    start_timer(STATE_INIT_TIMER, duration);
+}
+
+unsigned char state_init_timer_finished(){
+    if (state_init_finished) return false; // only call once
+    unsigned char result =  TMRArd_IsTimerExpired(STATE_INIT_TIMER);
+    if (result){
+        state_init_finished = true;
+        return true;
+    } else {
+        return false;
+    }
+
+}
+
 // -------------- Setup Methods ------------ //
 // this goes at the end because the functions need to be defined first
 void setup_states() {
@@ -918,6 +1029,9 @@ void setup_states() {
     state_functions[MOVING_BACKWARD] = moving_backward_fn;
     state_functions[ROTATING_LEFT] = rotating_left_fn;
     state_functions[ROTATING_RIGHT] = rotating_right_fn;
+    state_functions[PULSE_FORWARD] = pulse_forward_fn;
+    state_functions[PULSE_ROTATE_RIGHT] = pulse_rotate_right_fn;
+
     state_functions[BUMPED_R] = bumped_r_fn;
     state_functions[BUMPED_L] = bumped_l_fn;
     state_functions[BUMPED_B] = bumped_b_fn;
@@ -926,6 +1040,7 @@ void setup_states() {
 
     // --- Actual states --- //
     state_functions[FIRST_ROTATE_TO_FIND_SERVER] = first_rotate_to_find_server_fn;
+    state_functions[PAUSE] = pause_fn;
     state_functions[MOVE_TOWARDS_SERVER] = move_towards_server_fn;
     state_functions [ROTATE_RIGHT_OFF_WALL] = rotate_right_off_wall_fn;
     state_functions [ROTATE_LEFT_OFF_WALL] = rotate_left_off_wall_fn;
