@@ -128,6 +128,8 @@ typedef enum{
     EXTENDING_BUTTON_PRESSER,
     RETRACTING_BUTTON_PRESSER,
 
+    STRAIGHT_BACK_TO_DEPO,
+
     FINDING_DEPO_TO_SKIP,
     MOVING_TO_DEPO,
     CORRECTING_DEPO_ALIGNMENT,
@@ -565,13 +567,13 @@ void rotating_right_fn(){
     if (entered_state){
         debug_green->led_on();
         Serial.println("rotating_right_fn");
-        start_timer(MAIN_TIMER, 2000);
+        start_timer(MAIN_TIMER, 10000);
         rotate_right(10);
+        // pulse_rotate_right();
     }
-    if (respond_to_key(MOVING_FORWARD)) return;
-    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    // if (respond_to_key(MOVING_FORWARD)) return;
+    // if (respond_to_timer(ROTATING_RIGHT, NULL_STATE)) return;
     // if (respond_to_any_bumper_bumped(NULL_STATE)) return;
-
     // if (respond_to_timer(MAIN_TIMER, ROTATING_LEFT)) return;
 }
 
@@ -777,10 +779,15 @@ void arc_back_off_wall_fn(){
 
 void backup_slowly_to_tape_center_fn(){
     if (entered_state){
-        pulse_fine_backward();
         debug_red->led_on();
+        start_state_init_timer(500); // wait a bit before moving backwards
     }
-    check_pulse();
+    if (state_init_timer_finished()){
+        pulse_fine_backward();
+    }
+    if (state_init_finished){
+        check_pulse();
+    }
     if (respond_to_tape_on(tape_c, CENTERED_ON_SERVER_TAPE)) return;
 }   
 
@@ -924,7 +931,8 @@ void retracting_button_presser_fn(){
         retract_button_presser();
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
     }
-    if (respond_to_enough_presses(3,FINDING_DEPO_TO_SKIP)) return;
+    // if (respond_to_enough_presses(3,STRAIGHT_BACK_TO_DEPO)) return;
+    if (respond_to_enough_presses(4,FINDING_DEPO_TO_SKIP)) return;
     if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
     if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
     // if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return;
@@ -932,27 +940,47 @@ void retracting_button_presser_fn(){
     // if (respond_to_button_presser_finished(EXTENDING_BUTTON_PRESSER)) return;
 }
 
+void straight_back_to_depo_fn(){
+    if(entered_state){
+        start_state_init_timer(1000); // wait for last coin
+    } 
+    if (state_init_timer_finished()){
+        start_timer(MAIN_TIMER, 5000);
+        move_backwards(10); // wheeeeee // pray for straight movement
+        debug_blue->led_on();
+    }
+    if (state_init_finished){
+        if (respond_to_timer(MAIN_TIMER, LIFTING_HOPPER)) return;
+    }
+}
+
 void finding_depo_to_skip_fn(){
     if (entered_state){
         debug_red->led_on();
-        move_backwards(10);
+        move_backwards(9);
         start_state_init_timer(700); // back up a bit first
     }
     if (state_init_timer_finished()){
+        debug_blue->led_on();
+        debug_red->led_off();    
         if (arena_side == RIGHT_SIDE){
-            pulse_fine_rotate_right();
+            rotate_right(5);
+            // pulse_rotate_right();
+            // pulse_fine_rotate_right();
         } else if (arena_side == LEFT_SIDE){
-            pulse_fine_rotate_left();
+            rotate_left(5);
+            // pulse_rotate_left();
+            // pulse_fine_rotate_left();
         } else {
-            pulse_fine_rotate_right();
+            rotate_right(5);
         }
     }
     if (state_init_finished){
-        check_pulse();
+        // check_pulse();
         // if (respond_to_tape_on(tape_f, FINAL_MOVE_TO_DEPO)) return;
         // if (respond_to_tape_on(tape_f, MOVING_TO_DEPO)) return;
         if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
-            start_timer(SECONDARY_TIMER, 10000);
+            start_timer(SECONDARY_TIMER, 20000);
             return;
         }
         // if (respond_to_depository_found(MOVING_TO_DEPO)) return;
@@ -1003,12 +1031,14 @@ void correcting_depo_alignment_fn(){ // might not be necessary
 
 void search_right_a_bit_fn(){
     if (entered_state){
-        pulse_fine_rotate_right();
-        start_timer(MAIN_TIMER, 500 + (desperation * 600));
+        rotate_right(10);
+        // pulse_rotate_right();
+        // pulse_fine_rotate_right();
+        start_timer(MAIN_TIMER, 500 + (desperation * 2600));
         debug_blue->led_on();
         desperation++;
     }
-    check_pulse();
+    // check_pulse();
     if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_A_BIT)) return;
     if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
         direction_of_interest = DIR_RIGHT;
@@ -1018,12 +1048,14 @@ void search_right_a_bit_fn(){
 
 void search_left_a_bit_fn(){
     if (entered_state){
-        pulse_fine_rotate_left();
-        start_timer(MAIN_TIMER, 500 + (desperation * 300));
+        rotate_left(10);
+        // pulse_rotate_left();
+        // pulse_fine_rotate_left();
+        start_timer(MAIN_TIMER, 500 + (desperation * 1200));
         debug_green->led_on();
         desperation++;
     }
-    check_pulse();
+    // check_pulse();
     if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) return;
     if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)){
         direction_of_interest = DIR_LEFT;
@@ -1037,6 +1069,7 @@ void final_move_to_depo_fn(){
         // pulse_forward();
         move_forwards(9);
         debug_red->led_on();
+        debug_blue->led_on();
         start_timer(MAIN_TIMER, 300);
     }
     // check_pulse();
@@ -1074,6 +1107,7 @@ void getting_closer_to_depo_fn(){
 
 void lifting_hopper_fn(){
     if (entered_state){
+        // pulse_backward();
         pulse_forward();
         Serial.println("lifting_hopper_fn");
         debug_blue->led_on();
@@ -1116,6 +1150,7 @@ void null_state_fn(){
         move_forwards(8);
     }
     // Serial.println(digitalRead(BUMPER_R_PIN));
+    // change_state_to(ROTATING_RIGHT);
     // change_state_to(MOVING_FORWARD);
     // change_state_to(PULSE_ARC_BACK);
     // change_state_to(PULSE_ROTATE_RIGHT);
@@ -1195,10 +1230,8 @@ void setup_states() {
     state_functions[TAPE_F_SENSED] = tape_f_sensed_fn;
     state_functions[TAPE_C_SENSED] = tape_c_sensed_fn;
     state_functions[TAPE_BOTH_SENSED] = tape_both_sensed_fn;
-    state_functions[EXTENDING_BUTTON_PRESSER] = extending_button_presser_fn;
-    state_functions[RETRACTING_BUTTON_PRESSER] = retracting_button_presser_fn;
-    state_functions[LIFTING_HOPPER] = lifting_hopper_fn;
-    state_functions[LOWERING_HOPPER] = lowering_hopper_fn;
+    
+    
     
 
     state_functions[MOVING_FORWARD] = moving_forward_fn;
@@ -1230,6 +1263,11 @@ void setup_states() {
     state_functions[SEARCH_RIGHT_FOR_SERVER] = search_right_for_server_fn;
     state_functions[MOVING_FW_TO_ALIGN_WITH_SERVER] = moving_fw_to_align_with_server_fn;
     state_functions[BUMPED_ALIGNING_WITH_SERVER] = bumped_aligning_with_server_fn;
+    
+    state_functions[EXTENDING_BUTTON_PRESSER] = extending_button_presser_fn;
+    state_functions[RETRACTING_BUTTON_PRESSER] = retracting_button_presser_fn;
+    state_functions[STRAIGHT_BACK_TO_DEPO] = straight_back_to_depo_fn;
+
     state_functions[FINDING_DEPO_TO_SKIP] = finding_depo_to_skip_fn;
     state_functions[MOVING_TO_DEPO] = moving_to_depo_fn;
     state_functions[CORRECTING_DEPO_ALIGNMENT] = correcting_depo_alignment_fn;
@@ -1238,7 +1276,7 @@ void setup_states() {
     state_functions[FINAL_MOVE_TO_DEPO] = final_move_to_depo_fn;
     state_functions[GETTING_CLOSER_TO_DEPO] = getting_closer_to_depo_fn;
 
-
-
+    state_functions[LIFTING_HOPPER] = lifting_hopper_fn;
+    state_functions[LOWERING_HOPPER] = lowering_hopper_fn;
 
 }

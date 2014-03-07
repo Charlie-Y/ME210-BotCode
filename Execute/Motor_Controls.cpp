@@ -70,7 +70,7 @@ void motor_state_changed(){
 }
 
 void no_pulse(){
-
+    Serial.println('no_pulse');
 }
 
 // i could write a wrapper pulse fn. but no. 
@@ -101,7 +101,7 @@ void pulse_backward(){
     move_backwards(10);
     current_pulse_delay = 200;
     start_pulse_timer(100);
-    pulse_fn = pulse_forward;
+    pulse_fn = pulse_backward;
     is_pulsing = true;
 }
 
