@@ -69,6 +69,7 @@
 #define STATE_INIT_TIMER        2 // this is important
 #define PULSE_TIMER             3 // actually defined in motor_controls.cpp
 #define SECONDARY_TIMER         4 // global
+#define GAME_TIMER         5 // global
 
 
 #define RIGHT_SIDE              0 // oriented facing the arena from the start zones
@@ -128,6 +129,7 @@ typedef enum{
     EXTENDING_BUTTON_PRESSER,
     RETRACTING_BUTTON_PRESSER,
 
+    WAIT_FOR_LAST_COIN,
     STRAIGHT_BACK_TO_DEPO,
 
     FINDING_DEPO_TO_SKIP,
@@ -139,7 +141,7 @@ typedef enum{
     FINAL_MOVE_TO_DEPO,
     GETTING_CLOSER_TO_DEPO, 
 
-    
+    BACKING_AWAY_FROM_DEPO,
     // last typedef enum value is guaranteed to be > then the 
     // # of states there are. kudos to the guy who thought of this
     NUM_STATES 
@@ -158,15 +160,21 @@ static unsigned char current_state = STARTUP;
 static int desperation = 0;
 
 static unsigned char direction_of_interest;
+static unsigned char times_hopper_lifted = 0;
+static unsigned char times_to_lift_hopper = 1;// for safety
 
-static unsigned char exchanges[] = {8, 5, 3, 0};
-static unsigned char coin_collection_round;
-static unsigned char current_server;
-static unsigned char next_server;
-static unsigned char coins_on_hopper = 0;
-static unsigned char current_coin_count = 0;
-static unsigned char times_button_pressed_required = 1;
-static unsigned char total_coins = 0;
+static unsigned char coins_for_exchanges[] = {5, 5 + 8, 5 + 8 + 3};
+static unsigned char coin_collection_round = 0;
+
+// not being used...
+// static unsigned char exchanges[] = {8, 5, 3, 0};
+// static unsigned char coin_collection_round;
+// static unsigned char current_server;
+// static unsigned char next_server;
+// static unsigned char coins_on_hopper = 0;
+// static unsigned char current_coin_count = 0;
+// static unsigned char times_button_pressed_required = 1;
+// static unsigned char total_coins = 0;
 
 
 // Objects 
@@ -187,6 +195,8 @@ void debug_all_off(void);
 void start_timer(unsigned char, int);
 void start_state_init_timer(int);
 unsigned char state_init_timer_finished();
+unsigned char respond_to_timer(unsigned char, unsigned char);
+
 
 
 
@@ -197,6 +207,8 @@ unsigned char state_init_timer_finished();
 void execute_current_state(){
     // use the current state to access the array index of the 
     // function that i want
+    if (respond_to_timer(GAME_TIMER, STOP_STATE)) return; 
+
     state_functions[current_state]();
     if (!state_changed) entered_state = false;
     state_changed = false;
@@ -444,6 +456,16 @@ unsigned char respond_to_timer(unsigned char timer_id, unsigned char new_state){
     }
 }
 
+unsigned char respond_to_hopper_lifted_enough_times(unsigned char new_state){
+    if (times_hopper_lifted == times_to_lift_hopper){
+        times_hopper_lifted = 0;
+        change_state_to(new_state);
+        return true;
+    } else{
+        return false;
+    }
+}
+
 
 
 // -------------- Specific state functions ---------- //
@@ -454,7 +476,7 @@ unsigned char respond_to_timer(unsigned char timer_id, unsigned char new_state){
 
 // The main startup one. all the inits sill be called here
 void startup_fn(){
-    Serial.println("startup_fn");
+    // Serial.println("startup_fn");
 
     debug_red = new Debug_Led(DEBUG_RED);
     debug_green = new Debug_Led(DEBUG_GREEN);
@@ -474,7 +496,7 @@ void startup_fn(){
     // ==== yet to implement ===== //
     // coin_control_init()
 
-    Serial.println("end startup_fn");
+    // Serial.println("end startup_fn");
 
     change_state_to(NULL_STATE);
 }
@@ -932,7 +954,8 @@ void retracting_button_presser_fn(){
         start_timer(SERVO_TIMER, BUTTON_PRESSER_DELAY);
     }
     // if (respond_to_enough_presses(3,STRAIGHT_BACK_TO_DEPO)) return;
-    if (respond_to_enough_presses(4,FINDING_DEPO_TO_SKIP)) return;
+    unsigned char coins_to_get = coins_for_exchanges[coin_collection_round];
+    if (respond_to_enough_presses(coins_to_get,WAIT_FOR_LAST_COIN)) return;
     if (respond_to_key(RETRACTING_BUTTON_PRESSER)) return;
     if (respond_to_timer(SERVO_TIMER, EXTENDING_BUTTON_PRESSER)) return;
     // if (respond_to_timer(SERVO_TIMER, NULL_STATE)) return;
@@ -954,6 +977,14 @@ void straight_back_to_depo_fn(){
     }
 }
 
+void wait_for_last_coin_fn(){
+    if (entered_state){
+        start_timer(MAIN_TIMER, 1000);
+    }
+    if (respond_to_timer(MAIN_TIMER, FINDING_DEPO_TO_SKIP)) return;
+}
+
+
 void finding_depo_to_skip_fn(){
     if (entered_state){
         debug_red->led_on();
@@ -964,23 +995,30 @@ void finding_depo_to_skip_fn(){
         debug_blue->led_on();
         debug_red->led_off();    
         if (arena_side == RIGHT_SIDE){
-            rotate_right(5);
-            // pulse_rotate_right();
+            // rotate_right(5);
+            pulse_rotate_right();
+            direction_of_interest = DIR_RIGHT;
             // pulse_fine_rotate_right();
         } else if (arena_side == LEFT_SIDE){
-            rotate_left(5);
-            // pulse_rotate_left();
+            // rotate_left(5);
+            pulse_rotate_left();
+            direction_of_interest = DIR_LEFT;
+
             // pulse_fine_rotate_left();
         } else {
-            rotate_right(5);
+            // rotate_right(5);
+            pulse_rotate_right();
+            direction_of_interest = DIR_RIGHT;
+            
+
         }
     }
     if (state_init_finished){
-        // check_pulse();
+        check_pulse();
         // if (respond_to_tape_on(tape_f, FINAL_MOVE_TO_DEPO)) return;
         // if (respond_to_tape_on(tape_f, MOVING_TO_DEPO)) return;
         if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
-            start_timer(SECONDARY_TIMER, 20000);
+            start_timer(SECONDARY_TIMER, 10000);// uh oh. this is for giving up
             return;
         }
         // if (respond_to_depository_found(MOVING_TO_DEPO)) return;
@@ -1031,14 +1069,14 @@ void correcting_depo_alignment_fn(){ // might not be necessary
 
 void search_right_a_bit_fn(){
     if (entered_state){
-        rotate_right(10);
-        // pulse_rotate_right();
+        // rotate_right(10);
+        pulse_rotate_right();
         // pulse_fine_rotate_right();
-        start_timer(MAIN_TIMER, 500 + (desperation * 2600));
+        start_timer(MAIN_TIMER, 2000 + (desperation * 2600));
         debug_blue->led_on();
         desperation++;
     }
-    // check_pulse();
+    check_pulse();
     if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_A_BIT)) return;
     if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
         direction_of_interest = DIR_RIGHT;
@@ -1048,14 +1086,14 @@ void search_right_a_bit_fn(){
 
 void search_left_a_bit_fn(){
     if (entered_state){
-        rotate_left(10);
-        // pulse_rotate_left();
+        // rotate_left(10);
+        pulse_rotate_left();
         // pulse_fine_rotate_left();
-        start_timer(MAIN_TIMER, 500 + (desperation * 1200));
+        start_timer(MAIN_TIMER, 2000 + (desperation * 1200));
         debug_green->led_on();
         desperation++;
     }
-    // check_pulse();
+    check_pulse();
     if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) return;
     if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)){
         direction_of_interest = DIR_LEFT;
@@ -1102,7 +1140,10 @@ void getting_closer_to_depo_fn(){
         start_timer(MAIN_TIMER, 400);
         debug_green->led_on();
     }
-     if (respond_to_timer(MAIN_TIMER, LIFTING_HOPPER)) return;
+    if (respond_to_timer(MAIN_TIMER, LIFTING_HOPPER)) {
+        times_hopper_lifted = 0;
+        return;
+    }
 }
 
 void lifting_hopper_fn(){
@@ -1113,6 +1154,7 @@ void lifting_hopper_fn(){
         debug_blue->led_on();
         start_timer(SERVO_TIMER, 1500);
         extend_dumper();
+        times_hopper_lifted++;
     }
     check_pulse();
     // if (respond_to_key(NULL_STATE)) return; 
@@ -1124,14 +1166,28 @@ void lifting_hopper_fn(){
 
 void lowering_hopper_fn(){
 if (entered_state){
-        Serial.println("lowering_hopper_fn");
+        // Serial.println("lowering_hopper_fn");
         debug_green->led_on();
         start_timer(SERVO_TIMER, 1000);
         retract_dumper();
     }
-    if (respond_to_key(NULL_STATE)) return;
+    // if (respond_to_key(NULL_STATE)) return;
     // if (respond_to_dumper_finished(NULL_STATE)) return; 
+    if (respond_to_hopper_lifted_enough_times(BACKING_AWAY_FROM_DEPO)){
+        // at this point the coins should have fallen in
+        coin_collection_round++;
+        return;
+    }
     if (respond_to_timer(SERVO_TIMER, LIFTING_HOPPER)) return; 
+}
+
+void backing_away_from_depo_fn(){
+    if (entered_state){
+        debug_red->led_on();
+        start_timer(MAIN_TIMER, 600);
+        move_backwards(10);
+    }
+    if (respond_to_timer(MAIN_TIMER, POST_ARC_SERVER_SEARCH)) return;
 }
 
 
@@ -1269,6 +1325,7 @@ void setup_states() {
     state_functions[STRAIGHT_BACK_TO_DEPO] = straight_back_to_depo_fn;
 
     state_functions[FINDING_DEPO_TO_SKIP] = finding_depo_to_skip_fn;
+    state_functions[WAIT_FOR_LAST_COIN] = wait_for_last_coin_fn;
     state_functions[MOVING_TO_DEPO] = moving_to_depo_fn;
     state_functions[CORRECTING_DEPO_ALIGNMENT] = correcting_depo_alignment_fn;
     state_functions[SEARCH_LEFT_A_BIT] = search_left_a_bit_fn;
@@ -1278,5 +1335,10 @@ void setup_states() {
 
     state_functions[LIFTING_HOPPER] = lifting_hopper_fn;
     state_functions[LOWERING_HOPPER] = lowering_hopper_fn;
+
+    state_functions[BACKING_AWAY_FROM_DEPO] = backing_away_from_depo_fn;
+
+
+    start_timer(GAME_TIMER, 1000 * 60 * 2);
 
 }
