@@ -3,7 +3,7 @@
 
 
 void log_states();
-void setup_states();
+void initialize_state_machine_fn_pointers();
 void execute_current_state();
 
 #endif

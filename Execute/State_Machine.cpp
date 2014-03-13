@@ -64,7 +64,7 @@
 
 // Timers
 
-#define MAIN_TIMER              0// We'll use this for most of the states
+#define MAIN_STATE_TIMER              0// We'll use this for most of the states
 #define SERVO_TIMER             1 // dunno...
 #define STATE_INIT_TIMER        2 // this is important
 #define PULSE_TIMER             3 // actually defined in motor_controls.cpp
@@ -152,7 +152,7 @@ void (*state_functions[NUM_STATES])();
 
 // the state the machine is in
 static unsigned char state_changed;
-static unsigned char entered_state;
+static unsigned char just_entered_state;
 static unsigned char arena_side = LEFT_SIDE; // which side of the board we are on
 static unsigned char state_init_finished; // a debounce statement
 static unsigned char current_state = STARTUP;
@@ -210,7 +210,7 @@ void execute_current_state(){
     if (respond_to_timer(GAME_TIMER, STOP_STATE)) return; 
 
     state_functions[current_state]();
-    if (!state_changed) entered_state = false;
+    if (!state_changed) just_entered_state = false;
     state_changed = false;
 }
 
@@ -222,7 +222,7 @@ void change_state_to(unsigned char new_state){
     motor_state_changed(); // resets the pulse clock?
 
     current_state = new_state;
-    entered_state = true;
+    just_entered_state = true;
     state_changed = true;
     state_init_finished = false;
 
@@ -504,7 +504,7 @@ void startup_fn(){
 // Test states
 
 void server_beacon_sensed_fn(){
-    if (entered_state){
+    if (just_entered_state){
         // this code will only be executed once
         Serial.println("entered server_beacon_sensed_fn");
         debug_blue->led_on();
@@ -515,7 +515,7 @@ void server_beacon_sensed_fn(){
 }
 
 void depo_beacon_sensed_fn(){
-    if (entered_state){
+    if (just_entered_state){
         // this code will only be executed once
         Serial.println("entered depo_beacon_sensed_fn");
         debug_green->led_on();
@@ -526,7 +526,7 @@ void depo_beacon_sensed_fn(){
 }
 
 void tape_f_sensed_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         Serial.println("tape_f_sensed_fn");
     }
@@ -535,7 +535,7 @@ void tape_f_sensed_fn(){
 }
 
 void tape_c_sensed_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_blue->led_on();
         Serial.println("tape_c_sensed_fn");
     }
@@ -545,7 +545,7 @@ void tape_c_sensed_fn(){
 
 
 void tape_both_sensed_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_green->led_on();
         Serial.println("tape_both_sensed_fn");
     }
@@ -558,9 +558,9 @@ void tape_both_sensed_fn(){
 
 
 void moving_forward_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("moving_forward_fn");
-        start_timer(MAIN_TIMER, 1000);
+        start_timer(MAIN_STATE_TIMER, 1000);
         debug_blue->led_on();
         move_forwards(10);
         // stop_moving();
@@ -568,51 +568,51 @@ void moving_forward_fn(){
         // pivot_right(10);
     }
     // if (respond_to_key(ROTATING_LEFT)) return;
-    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, NULL_STATE)) return;
     // if (respond_to_any_bumper_bumped(NULL_STATE)) return;
 }
 
 void moving_backward_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_green->led_on();
         Serial.println("moving_backward_fn");
-        start_timer(MAIN_TIMER, 2000);
+        start_timer(MAIN_STATE_TIMER, 2000);
         move_backwards(2);
         // move_forwards(5);
 
     }
     if (respond_to_key(ROTATING_LEFT)) return;
-    if (respond_to_timer(MAIN_TIMER, NULL_STATE));
+    if (respond_to_timer(MAIN_STATE_TIMER, NULL_STATE));
 }
 
 void rotating_right_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_green->led_on();
         Serial.println("rotating_right_fn");
-        start_timer(MAIN_TIMER, 10000);
+        start_timer(MAIN_STATE_TIMER, 10000);
         rotate_right(10);
         // pulse_rotate_right();
     }
     // if (respond_to_key(MOVING_FORWARD)) return;
     // if (respond_to_timer(ROTATING_RIGHT, NULL_STATE)) return;
     // if (respond_to_any_bumper_bumped(NULL_STATE)) return;
-    // if (respond_to_timer(MAIN_TIMER, ROTATING_LEFT)) return;
+    // if (respond_to_timer(MAIN_STATE_TIMER, ROTATING_LEFT)) return;
 }
 
 void rotating_left_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         debug_blue->led_on();
         Serial.println("rotating_left_fn");
-        start_timer(MAIN_TIMER, 2000);
+        start_timer(MAIN_STATE_TIMER, 2000);
         rotate_left(10);
     }
     if (respond_to_key(MOVING_FORWARD)) return;
-    if (respond_to_timer(MAIN_TIMER, ROTATING_RIGHT)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, ROTATING_RIGHT)) return;
 }
 
 void bumped_r_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         Serial.println("bumped_r_fn");
     }
@@ -621,7 +621,7 @@ void bumped_r_fn(){
 
 }
 void bumped_l_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_blue->led_on();
         Serial.println("bumped_l_fn");
     }
@@ -631,7 +631,7 @@ void bumped_l_fn(){
 }
 
 void bumped_b_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_green->led_on();
         Serial.println("bumped_b_fn");
     }
@@ -640,7 +640,7 @@ void bumped_b_fn(){
 }
 
 void pulse_forward_fn(){
-    if (entered_state){
+    if (just_entered_state){
         pulse_forward();
         // Serial.println("Pulsing fw");
         debug_blue->led_on();
@@ -649,7 +649,7 @@ void pulse_forward_fn(){
 }
 
 void pulse_rotate_right_fn(){
-    if (entered_state){
+    if (just_entered_state){
         pulse_rotate_right();
         debug_red->led_on();
     }
@@ -658,7 +658,7 @@ void pulse_rotate_right_fn(){
 }
 
 void pulse_arc_back_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("Pulsing arc back");
         pulse_arc_back(DIR_RIGHT);
         debug_green->led_on();
@@ -677,32 +677,32 @@ void pulse_arc_back_fn(){
 // *
 
 void first_rotate_to_find_server_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("first_rotate_to_find_server_fn");
         // rotate_right(8);
         pulse_rotate_right();
         debug_blue->led_on();
-        start_timer(MAIN_TIMER, 6000);
+        start_timer(MAIN_STATE_TIMER, 6000);
     }
     check_pulse();
 
     if (respond_to_server_found(CORRECTING_ROTATION_1)) return ;
-    if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, NULL_STATE)) return;
 }
 
 
 void first_move_towards_server_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("first_move_towards_server_fn");
         // move_forwards(7);
         pulse_forward();
         debug_red->led_on();
-        // start_timer(MAIN_TIMER, 5000);
+        // start_timer(MAIN_STATE_TIMER, 5000);
     }
 
     check_pulse();
 
-    // if (respond_to_timer(MAIN_TIMER, NULL_STATE)) return;
+    // if (respond_to_timer(MAIN_STATE_TIMER, NULL_STATE)) return;
     if (respond_to_only_r_bumper_bumped(bumper_r, bumper_l, ARC_BACK_OFF_WALL)) {
         arena_side = RIGHT_SIDE; // now we know what side of the arena we are on
         direction_of_interest = DIR_LEFT; // you want to arc back and to the left
@@ -725,7 +725,7 @@ void first_move_towards_server_fn(){
 
 void move_towards_server_fn(){
     // just moving to the server. hum didddly dum...
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         pulse_forward();
     }
@@ -742,7 +742,7 @@ void move_towards_server_fn(){
 }
 
 void post_arc_server_search_fn(){
-    if (entered_state){
+    if (just_entered_state){
         pulse_rotate_right();
         debug_blue->led_on();
     }
@@ -751,56 +751,56 @@ void post_arc_server_search_fn(){
 }
 
 void correcting_rotation_1_fn(){
-    if (entered_state){
+    if (just_entered_state){
         start_state_init_timer(400);
         debug_green->led_on();
     }
     if (state_init_timer_finished()){
         rotate_left(8);
         state_init_finished = true;
-        start_timer(MAIN_TIMER, 60);
+        start_timer(MAIN_STATE_TIMER, 60);
         debug_green->led_off();
         debug_red->led_off();
     }
     if (state_init_finished){
-        if (respond_to_timer(MAIN_TIMER, FIRST_MOVE_TOWARDS_SERVER)) return;
+        if (respond_to_timer(MAIN_STATE_TIMER, FIRST_MOVE_TOWARDS_SERVER)) return;
     }
 }
 
 // figure out how to make these into substates or something...
 void correcting_rotation_2_fn(){
-    if (entered_state){
+    if (just_entered_state){
         start_state_init_timer(400);
         debug_green->led_on();
     }
     if (state_init_timer_finished()){
         rotate_left(8);
         state_init_finished = true;
-        start_timer(MAIN_TIMER, 60);
+        start_timer(MAIN_STATE_TIMER, 60);
         debug_green->led_off();
         debug_red->led_off();
     }
     if (state_init_finished){
-        // if (respond_to_timer(MAIN_TIMER, MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
-        if (respond_to_timer(MAIN_TIMER, MOVE_TOWARDS_SERVER)) return;
+        // if (respond_to_timer(MAIN_STATE_TIMER, MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
+        if (respond_to_timer(MAIN_STATE_TIMER, MOVE_TOWARDS_SERVER)) return;
     }
 }
 
 void arc_back_off_wall_fn(){
-    if (entered_state){
+    if (just_entered_state){
         pulse_arc_back(direction_of_interest);
-        start_timer(MAIN_TIMER, 4000);
+        start_timer(MAIN_STATE_TIMER, 4000);
         debug_green->led_on();
     }
     check_pulse();
-    if (respond_to_timer(MAIN_TIMER, POST_ARC_SERVER_SEARCH)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, POST_ARC_SERVER_SEARCH)) return;
     if (respond_to_tape_on(tape_c, CENTERED_ON_SERVER_TAPE)) return;
     // if (respond_to_server_found(MOVE_TOWARDS_SERVER)) return;
 
 }
 
 void backup_slowly_to_tape_center_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         start_state_init_timer(500); // wait a bit before moving backwards
     }
@@ -815,13 +815,13 @@ void backup_slowly_to_tape_center_fn(){
 
 
 void centered_on_server_tape_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         debug_green->led_on();
         debug_blue->led_on();
-        start_timer(MAIN_TIMER, 1000);
+        start_timer(MAIN_STATE_TIMER, 1000);
     }
-    if (respond_to_timer(MAIN_TIMER, FINAL_ALIGN_TO_SERVER)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, FINAL_ALIGN_TO_SERVER)) return;
     if (respond_to_any_bumper_bumped(EXTENDING_BUTTON_PRESSER)) return;
 
 }
@@ -834,7 +834,7 @@ void centered_on_server_tape_fn(){
 ///
 
 void final_align_to_server_fn(){
-    if (entered_state){
+    if (just_entered_state){
         pulse_rotate_right();
         debug_blue->led_on();
     }
@@ -847,14 +847,14 @@ void search_right_for_server_fn(){
         direction_of_interest = DIR_RIGHT;
         return;
     }
-    if (entered_state){
+    if (just_entered_state){
         pulse_fine_rotate_right();
-        start_timer(MAIN_TIMER, 1500 + (desperation * 550));
+        start_timer(MAIN_STATE_TIMER, 1500 + (desperation * 550));
         debug_blue->led_on();
         desperation++;
     }
     check_pulse();
-    if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_FOR_SERVER)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_LEFT_FOR_SERVER)) return;
 }
 
 void search_left_for_server_fn(){
@@ -862,33 +862,33 @@ void search_left_for_server_fn(){
         direction_of_interest = DIR_LEFT;
         return;
     }
-    if (entered_state){
+    if (just_entered_state){
         pulse_fine_rotate_left();
-        start_timer(MAIN_TIMER, 1500 + (desperation * 550));
+        start_timer(MAIN_STATE_TIMER, 1500 + (desperation * 550));
         debug_blue->led_on();
         debug_red->led_on();
         desperation++;
     }
     check_pulse();
-    if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_FOR_SERVER)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_RIGHT_FOR_SERVER)) return;
 }   
 
 void moving_fw_to_align_with_server_fn(){
-    if (entered_state){
+    if (just_entered_state){
         desperation = 0;
         pulse_fine_forward();
         debug_red->led_on();
-        start_timer(MAIN_TIMER, 1000);
+        start_timer(MAIN_STATE_TIMER, 1000);
     }
     check_pulse();
     if (direction_of_interest == DIR_LEFT){
-        if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_FOR_SERVER)) {
+        if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_RIGHT_FOR_SERVER)) {
             direction_of_interest == DIR_RIGHT;
             return;
         }
     } 
     if (direction_of_interest == DIR_RIGHT){
-        if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_FOR_SERVER)) {
+        if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_LEFT_FOR_SERVER)) {
             direction_of_interest == DIR_LEFT;
             return;
         }
@@ -909,7 +909,7 @@ void moving_fw_to_align_with_server_fn(){
 
 //one bumper is down, now pivot until the other is down
 void bumped_aligning_with_server_fn(){
-    if (entered_state){
+    if (just_entered_state){
         if (direction_of_interest == DIR_LEFT){
             debug_blue->led_on();
             pivot_left(10);
@@ -917,16 +917,16 @@ void bumped_aligning_with_server_fn(){
             debug_green->led_on();
             pivot_right(10);
         }
-        start_timer(MAIN_TIMER, 3000);
+        start_timer(MAIN_STATE_TIMER, 3000);
         // move_forwards(10);
     }
-    if (respond_to_timer(MAIN_TIMER, MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
-    // if (respond_to_timer(MAIN_TIMER, EXTENDING_BUTTON_PRESSER)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, MOVING_FW_TO_ALIGN_WITH_SERVER)) return;
+    // if (respond_to_timer(MAIN_STATE_TIMER, EXTENDING_BUTTON_PRESSER)) return;
     if (respond_to_both_bumpers_bumped(bumper_l, bumper_r, EXTENDING_BUTTON_PRESSER)) return;
 }
 
 void extending_button_presser_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("extending_button_presser_fn");
         extend_button_presser();
         debug_green->led_on();
@@ -946,7 +946,7 @@ void extending_button_presser_fn(){
 
 
 void retracting_button_presser_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("retracting_button_presser_fn");
         //move servo back a bit
         debug_blue->led_on();
@@ -964,29 +964,29 @@ void retracting_button_presser_fn(){
 }
 
 void straight_back_to_depo_fn(){
-    if(entered_state){
+    if(just_entered_state){
         start_state_init_timer(1000); // wait for last coin
     } 
     if (state_init_timer_finished()){
-        start_timer(MAIN_TIMER, 5000);
+        start_timer(MAIN_STATE_TIMER, 5000);
         move_backwards(10); // wheeeeee // pray for straight movement
         debug_blue->led_on();
     }
     if (state_init_finished){
-        if (respond_to_timer(MAIN_TIMER, LIFTING_HOPPER)) return;
+        if (respond_to_timer(MAIN_STATE_TIMER, LIFTING_HOPPER)) return;
     }
 }
 
 void wait_for_last_coin_fn(){
-    if (entered_state){
-        start_timer(MAIN_TIMER, 1000);
+    if (just_entered_state){
+        start_timer(MAIN_STATE_TIMER, 1000);
     }
-    if (respond_to_timer(MAIN_TIMER, FINDING_DEPO_TO_SKIP)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, FINDING_DEPO_TO_SKIP)) return;
 }
 
 
 void finding_depo_to_skip_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         move_backwards(9);
         start_state_init_timer(700); // back up a bit first
@@ -1028,7 +1028,7 @@ void finding_depo_to_skip_fn(){
 
 // // make it skip a depo here?
 // void skipping_depo_fn(){
-//     if (entered_state){
+//     if (just_entered_state){
 //         pulse_rotate_right();
 //     }
 //     check_pulse();
@@ -1036,7 +1036,7 @@ void finding_depo_to_skip_fn(){
 // }
 
 // void finding_final_depo_fn(){
-//     if (entered_state){
+//     if (just_entered_state){
 //         pulse_rotate_right();
 //     }
 //     check_pulse();
@@ -1044,7 +1044,7 @@ void finding_depo_to_skip_fn(){
 // }
 
 void moving_to_depo_fn(){
-    if(entered_state){
+    if(just_entered_state){
         pulse_forward();
         debug_red->led_on();
         debug_blue->led_on();
@@ -1055,29 +1055,29 @@ void moving_to_depo_fn(){
 }
 
 void correcting_depo_alignment_fn(){ // might not be necessary
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
         debug_green->led_on();
         debug_blue->led_on();
         pulse_backward();
-        start_timer(MAIN_TIMER, 400);
+        start_timer(MAIN_STATE_TIMER, 400);
     }
     check_pulse();
-    if(respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) return;
+    if(respond_to_timer(MAIN_STATE_TIMER, SEARCH_RIGHT_A_BIT)) return;
 
 }
 
 void search_right_a_bit_fn(){
-    if (entered_state){
+    if (just_entered_state){
         // rotate_right(10);
         pulse_rotate_right();
         // pulse_fine_rotate_right();
-        start_timer(MAIN_TIMER, 2000 + (desperation * 2600));
+        start_timer(MAIN_STATE_TIMER, 2000 + (desperation * 2600));
         debug_blue->led_on();
         desperation++;
     }
     check_pulse();
-    if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_A_BIT)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_LEFT_A_BIT)) return;
     if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)) {
         direction_of_interest = DIR_RIGHT;
         return;
@@ -1085,16 +1085,16 @@ void search_right_a_bit_fn(){
 }
 
 void search_left_a_bit_fn(){
-    if (entered_state){
+    if (just_entered_state){
         // rotate_left(10);
         pulse_rotate_left();
         // pulse_fine_rotate_left();
-        start_timer(MAIN_TIMER, 2000 + (desperation * 1200));
+        start_timer(MAIN_STATE_TIMER, 2000 + (desperation * 1200));
         debug_green->led_on();
         desperation++;
     }
     check_pulse();
-    if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_RIGHT_A_BIT)) return;
     if (respond_to_depository_found(FINAL_MOVE_TO_DEPO)){
         direction_of_interest = DIR_LEFT;
         return;
@@ -1102,13 +1102,13 @@ void search_left_a_bit_fn(){
 }
 
 void final_move_to_depo_fn(){
-    if (entered_state){
+    if (just_entered_state){
         desperation = 0;
         // pulse_forward();
         move_forwards(9);
         debug_red->led_on();
         debug_blue->led_on();
-        start_timer(MAIN_TIMER, 300);
+        start_timer(MAIN_STATE_TIMER, 300);
     }
     // check_pulse();
     if (respond_to_timer(SECONDARY_TIMER, GETTING_CLOSER_TO_DEPO)){
@@ -1117,13 +1117,13 @@ void final_move_to_depo_fn(){
     }
     if (!depository_found()){
         if (direction_of_interest == DIR_LEFT){
-            if (respond_to_timer(MAIN_TIMER, SEARCH_RIGHT_A_BIT)) {
+            if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_RIGHT_A_BIT)) {
                 direction_of_interest == DIR_RIGHT;
                 return;
             }
         } 
         if (direction_of_interest == DIR_RIGHT){
-            if (respond_to_timer(MAIN_TIMER, SEARCH_LEFT_A_BIT)) {
+            if (respond_to_timer(MAIN_STATE_TIMER, SEARCH_LEFT_A_BIT)) {
                 direction_of_interest == DIR_LEFT;
                 return;
             }
@@ -1135,19 +1135,19 @@ void final_move_to_depo_fn(){
 }
 
 void getting_closer_to_depo_fn(){
-    if (entered_state){
+    if (just_entered_state){
         move_forwards(10);
-        start_timer(MAIN_TIMER, 400);
+        start_timer(MAIN_STATE_TIMER, 400);
         debug_green->led_on();
     }
-    if (respond_to_timer(MAIN_TIMER, LIFTING_HOPPER)) {
+    if (respond_to_timer(MAIN_STATE_TIMER, LIFTING_HOPPER)) {
         times_hopper_lifted = 0;
         return;
     }
 }
 
 void lifting_hopper_fn(){
-    if (entered_state){
+    if (just_entered_state){
         // pulse_backward();
         pulse_forward();
         Serial.println("lifting_hopper_fn");
@@ -1165,7 +1165,7 @@ void lifting_hopper_fn(){
 }
 
 void lowering_hopper_fn(){
-if (entered_state){
+if (just_entered_state){
         // Serial.println("lowering_hopper_fn");
         debug_green->led_on();
         start_timer(SERVO_TIMER, 1000);
@@ -1182,12 +1182,12 @@ if (entered_state){
 }
 
 void backing_away_from_depo_fn(){
-    if (entered_state){
+    if (just_entered_state){
         debug_red->led_on();
-        start_timer(MAIN_TIMER, 600);
+        start_timer(MAIN_STATE_TIMER, 600);
         move_backwards(10);
     }
-    if (respond_to_timer(MAIN_TIMER, POST_ARC_SERVER_SEARCH)) return;
+    if (respond_to_timer(MAIN_STATE_TIMER, POST_ARC_SERVER_SEARCH)) return;
 }
 
 
@@ -1198,7 +1198,7 @@ void backing_away_from_depo_fn(){
 // send things here to end the loop
 
 void null_state_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("null_state_fn");
         debug_red->led_on();
         debug_green->led_on();
@@ -1235,7 +1235,7 @@ void null_state_fn(){
 }
 
 void stop_state_fn(){
-    if (entered_state){
+    if (just_entered_state){
         Serial.println("stop_state_fn");
     }
 
@@ -1276,7 +1276,7 @@ unsigned char state_init_timer_finished(){
 // -------------- Setup Methods ------------ //
 // this goes at the end because the functions need to be defined first
 // i'm not going to write all the prototypes just so i can write this at the front...
-void setup_states() {
+void initialize_state_machine_fn_pointers() {
     //link each state to a function
     state_functions[STARTUP] = startup_fn;
 
